@@ -93,17 +93,19 @@ const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const $e=(id,m,ok)=>{const e=$('#'+id);e.style.cssText='display:block'+(ok?';background:rgba(46,204,113,.1);border-color:rgba(46,204,113,.3);color:var(--ac)':'');e.textContent=m};
 function switchLTab(t,el){document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('active'));el.classList.add('active');$('#ltc-login').classList.toggle('active',t==='login');$('#ltc-register').classList.toggle('active',t==='register')}
 function togglePw(id,b){const i=$('#'+id);i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁':'🙈'}
-async function users(){try{const r=await gs({action:'getAll',sheet:'usuarios'});return r.map(x=>{try{return{...JSON.parse(x.json),id:x.id}}catch(e){return x}})}catch(e){return[]}}
+async function users(){const r=await gs({action:'getAll',sheet:'usuarios'});if(!Array.isArray(r))throw new Error(r&&r.error?r.error:'resposta inválida do servidor');
+ return r.map(x=>{try{return{...JSON.parse(x.json),id:x.id}}catch(e){const p=String(x.perfil||'').toLowerCase(),st=String(x.status||'').toLowerCase();return{id:x.id,name:x.nome,email:x.email,password:x.senha,setor:x.setor,role:p==='master'||p==='admin'?'admin':'user',status:st==='aprovado'||st==='approved'?'approved':st==='revogado'?'revoked':'pending'}}})}
 async function doLogin(){const em=$('#loginEmail').value.trim().toLowerCase(),pw=$('#loginPassword').value;$('#loginError').style.display='none';
  if(!em||!pw)return $e('loginError','Preencha e-mail e senha.');const btn=document.querySelector('#ltc-login .lbtn');btn.textContent='Verificando...';
- const u=(await users()).find(x=>String(x.email||'').trim().toLowerCase()===em&&String(x.password||'').trim()===pw.trim());btn.textContent='Entrar';
+ let UU;try{UU=await users()}catch(e){btn.textContent='Entrar';return $e('loginError','Sem conexão com o banco de dados ('+(e.message||e)+'). Confira o config.js e a implantação do Apps Script. Link em uso: '+GS.slice(0,48)+'…')}
+ const u=UU.find(x=>String(x.email||'').trim().toLowerCase()===em&&String(x.password||'').trim()===pw.trim());btn.textContent='Entrar';
  if(!u)return $e('loginError','E-mail ou senha incorretos.');
  if(String(u.status||'').trim().toLowerCase()!=='approved')return $e('loginError','Acesso pendente de aprovação. Contate o administrador.');
  if($('#rememberMe').checked)try{localStorage.setItem('vnUser',JSON.stringify({email:u.email,pass:u.password}))}catch(e){}
  start(u)}
 async function doRegister(){const n=$('#regName').value.trim(),em=$('#regEmail').value.trim(),st=$('#regSetor').value.trim(),pw=$('#regPassword').value,role=$('#regRole').value;$('#registerError').style.display='none';
  if(!n||!em||pw.length<6||(role==='user'&&!st))return $e('registerError','Preencha todos os campos (senha mín. 6 caracteres).');
- if((await users()).some(x=>String(x.email||'').trim().toLowerCase()===em.toLowerCase()))return $e('registerError','E-mail já cadastrado.');
+ let UR=[];try{UR=await users()}catch(e){return $e('registerError','Sem conexão com o banco de dados.')}if(UR.some(x=>String(x.email||'').trim().toLowerCase()===em.toLowerCase()))return $e('registerError','E-mail já cadastrado.');
  const nu={id:'u_'+Date.now(),name:n,email:em,password:pw,role,setor:st,status:'pending',isCreator:'false'};
  try{const r=await gs({action:'insert',sheet:'usuarios',data:b64(JSON.stringify(nu)),enc:'b64'});r.status==='ok'?$e('registerError','✅ Cadastro solicitado! Aguarde aprovação do administrador.',1):$e('registerError','❌ Erro ao salvar: '+(r.error||'tente novamente'))}catch(e){$e('registerError','❌ Sem conexão com o banco de dados.')}}
 async function lembrado(){try{const sv=JSON.parse(localStorage.getItem('vnUser'));if(!sv)return;const u=(await users()).find(x=>String(x.email||'').trim().toLowerCase()===String(sv.email).toLowerCase()&&String(x.password||'').trim()===String(sv.pass).trim());
