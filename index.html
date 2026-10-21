@@ -380,9 +380,11 @@ async function encAc(id){const a=D.acordos.find(x=>x.id===id);if(!a.encerrado&&!
 const nrm=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const rowTxt=(k,r)=>nrm(E[k].f.map(f=>f[2]&&f[2]!=='num'&&f[2]!=='date'?lbl(f[2],r[f[0]]):r[f[0]]).join(' '));
 function crudBusca(v){const q=nrm(v);document.querySelectorAll('#main table tr[data-s]').forEach(tr=>tr.style.display=tr.dataset.s.includes(q)?'':'none')}
-function filtraSel(inp,selId,k){const q=nrm(inp.value),s=$('#'+selId),cur=s.value,L=D[k].filter(o=>!q||nrm(lbl(k,o.id)).includes(q));
- s.innerHTML=(selId==='of_pr'?'<option value="">Item avulso (digitar)</option>':'<option value="">Selecione</option>')+L.map(o=>`<option value="${o.id}">${esc(lbl(k,o.id))}</option>`).join('');
- if(q&&L.length===1){s.value=L[0].id;s.dispatchEvent(new Event('change'))}else s.value=L.some(o=>o.id===cur)?cur:''}
+function filtraSel(inp,selId,k){const q=nrm(inp.value),s=$('#'+selId),cur=s.value,av=selId==='of_pr',L=D[k].filter(o=>!q||nrm(lbl(k,o.id)).includes(q));
+ const t=q?(L.length?L.length+' resultado(s) encontrado(s) — clique para escolher':(av?'Nenhum resultado (item avulso)':'Nenhum resultado')):(av?'Item avulso (digitar)':'Selecione');
+ s.innerHTML=`<option value="">${t}</option>`+L.map(o=>`<option value="${o.id}">${esc(lbl(k,o.id))}</option>`).join('');
+ if(q&&L.length===1){s.value=L[0].id;s.size=1;s.dispatchEvent(new Event('change'))}
+ else{s.value=L.some(o=>o.id===cur)?cur:'';s.size=q&&L.length?Math.min(L.length+1,9):1;if(s.size>1)s.addEventListener('change',()=>{s.size=1},{once:true})}}
 // ===== DUPLICADOS =====
 function dupKey(k,o){return k==='cats'?nrm(o.nome):k==='prods'?nrm(o.codigo):k==='forn'?(String(o.cnpj||'').replace(/\D/g,'')||nrm(o.nome)):k==='acordos'&&!o.encerrado?o.prod+'|'+o.forn:null}
 function dupGrupos(k){const m={};D[k].forEach(o=>{const c=dupKey(k,o);if(c)(m[c]=m[c]||[]).push(o)});return Object.values(m).filter(g=>g.length>1)}
