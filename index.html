@@ -1,5 +1,6 @@
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><script src="config.js"></script>
 <title>Vila Nova — Pedidos e Ordens de Compra</title>
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -65,7 +66,7 @@ canvas.sg{background:#fff;border-radius:6px;width:100%;max-width:420px;height:13
 <select class="linput" id="regRole"><option value="user">Solicitante</option><option value="admin">Administrador (Compras)</option></select>
 <p style="font-size:.74rem;color:var(--tx3);margin:0 0 12px">⚠️ Acesso pendente até aprovação do administrador.</p><button class="lbtn" onclick="doRegister()">Solicitar Cadastro</button><div class="lerror" id="registerError"></div></div>
 </div></div>
-<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
+<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-4</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
 <nav id="nav"></nav><main id="main"></main></div><div id="toast"></div><div id="sign" style="display:none"></div><div id="printArea"></div>
 <script>
 // ===== CONFIG =====
