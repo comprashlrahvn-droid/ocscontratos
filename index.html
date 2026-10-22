@@ -60,14 +60,14 @@ canvas.sg{background:#fff;border-radius:6px;width:100%;max-width:420px;height:13
 <div class="ltabs"><button class="ltab active" onclick="switchLTab('login',this)">Entrar</button><button class="ltab" onclick="switchLTab('register',this)">Cadastrar</button></div>
 <div id="ltc-login" class="ltc active"><input class="linput" type="email" id="loginEmail" placeholder="seu@email.com">
 <div class="lpwrap"><input class="linput" type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"><button class="ltpw" onclick="togglePw('loginPassword',this)">👁</button></div>
-<div class="lrem"><input type="checkbox" id="rememberMe"><label for="rememberMe">Manter conectado</label></div><button class="lbtn" onclick="doLogin()">Entrar</button><div class="lerror" id="loginError"></div></div>
+<div class="lrem"><input type="checkbox" id="rememberMe"><label for="rememberMe">Manter conectado</label></div><button class="lbtn" onclick="doLogin()">Entrar</button><div class="lerror" id="loginError"></div><div style="text-align:center;margin-top:12px"><a href="#" onclick="testaConexao();return false" style="font-size:.74rem;color:var(--tx3)">Testar conexão com o banco de dados</a></div></div>
 <div id="ltc-register" class="ltc"><input class="linput" id="regName" placeholder="Nome completo"><input class="linput" type="email" id="regEmail" placeholder="seu@email.com">
 <input class="linput" id="regSetor" placeholder="Setor (ex.: Farmácia, Nutrição)">
 <div class="lpwrap"><input class="linput" type="password" id="regPassword" placeholder="Mínimo 6 caracteres"><button class="ltpw" onclick="togglePw('regPassword',this)">👁</button></div>
 <select class="linput" id="regRole"><option value="user">Solicitante</option><option value="admin">Administrador (Compras)</option></select>
 <p style="font-size:.74rem;color:var(--tx3);margin:0 0 12px">⚠️ Acesso pendente até aprovação do administrador.</p><button class="lbtn" onclick="doRegister()">Solicitar Cadastro</button><div class="lerror" id="registerError"></div></div>
 </div></div>
-<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-9</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
+<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-10</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
 <nav id="nav"></nav><main id="main"></main></div><div id="toast"></div><div id="sign" style="display:none"></div><div id="printArea"></div>
 <script>
 // ===== CONFIG =====
@@ -80,8 +80,12 @@ const brl=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL
 const b64=s=>btoa(unescape(encodeURIComponent(s)));
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3200)}
 // ===== BANCO (Apps Script / Google Sheets) =====
-async function gs(p){const r=await fetch(GS+'?'+new URLSearchParams(p),{redirect:'follow'});return r.json()}
-async function gsPost(b){const r=await fetch(GS,{method:'POST',body:JSON.stringify(b)});return r.json()}
+const TMO=window.GS_TIMEOUT||25000;
+async function fetchT(u,o,retry){for(let t=0;;t++){const c=new AbortController(),tm=setTimeout(()=>c.abort(),TMO);
+  try{const r=await fetch(u,{...o,signal:c.signal}),j=await r.json();clearTimeout(tm);return j}
+  catch(e){clearTimeout(tm);if(t>=retry)throw new Error(e.name==='AbortError'?'o Apps Script não respondeu em '+Math.round(TMO/1000)+' segundos':(e.message||String(e)))}}}
+async function gs(p){return fetchT(GS+'?'+new URLSearchParams(p),{redirect:'follow'},p.action==='getAll'?1:0)}
+async function gsPost(b){return fetchT(GS,{method:'POST',body:JSON.stringify(b)},0)}
 async function load(k){try{const rows=await gs({action:'getAll',sheet:SH[k]});D[k]=[...new Map(rows.map(r=>{try{return JSON.parse(r.json)}catch(e){return null}}).filter(Boolean).map(o=>[o.id,o])).values()];
  try{localStorage.setItem('vn_'+k,JSON.stringify(D[k]))}catch(e){}}catch(e){try{D[k]=JSON.parse(localStorage.getItem('vn_'+k)||'[]')}catch(x){D[k]=[]}DBOK=false;$('#dot').style.background='#e74c3c'}}
 const LOCK={};async function lock(n,fn){if(LOCK[n])return toast('Aguarde: a operação anterior ainda está salvando...');LOCK[n]=1;try{return await fn()}finally{LOCK[n]=0}}
@@ -93,7 +97,7 @@ async function save_(k,o){const i=D[k].findIndex(x=>x.id===o.id),isNew=i<0;if(is
  const data=b64(JSON.stringify({id:o.id,json:JSON.stringify(o)}));
  try{const r=await gs({action:isNew?'insert':'update',sheet:SH[k],id:o.id,data,enc:'b64'});if(r.status==='not_found')await gs({action:'insert',sheet:SH[k],data,enc:'b64'})}catch(e){toast('Falha ao gravar no banco')}}
 async function del(k,id){D[k]=D[k].filter(x=>x.id!==id);try{await gs({action:'delete',sheet:SH[k],id})}catch(e){}}
-const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+let UC=0;const uid=p=>p+Date.now().toString(36)+(++UC).toString(36)+Math.random().toString(36).slice(2,6);
 // ===== LOGIN (mesma base de usuários do sistema Vila Nova: aba "usuarios") =====
 const $e=(id,m,ok)=>{const e=$('#'+id);e.style.cssText='display:block'+(ok?';background:rgba(46,204,113,.1);border-color:rgba(46,204,113,.3);color:var(--ac)':'');e.textContent=m};
 function switchLTab(t,el){document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('active'));el.classList.add('active');$('#ltc-login').classList.toggle('active',t==='login');$('#ltc-register').classList.toggle('active',t==='register')}
@@ -102,7 +106,7 @@ async function users(){const r=await gs({action:'getAll',sheet:'usuarios'});if(!
  return r.map(x=>{try{return{...JSON.parse(x.json),id:x.id}}catch(e){const p=String(x.perfil||'').toLowerCase(),st=String(x.status||'').toLowerCase();return{id:x.id,name:x.nome,email:x.email,password:x.senha,setor:x.setor,role:p==='master'||p==='admin'?'admin':'user',status:st==='aprovado'||st==='approved'?'approved':st==='revogado'?'revoked':'pending',cats:(()=>{const c=String(x.categorias||'').trim();return!c||c.toUpperCase()==='TODAS'?null:c.toUpperCase()==='NENHUMA'?[]:c.split(',')})()}}})}
 async function doLogin(){const em=$('#loginEmail').value.trim().toLowerCase(),pw=$('#loginPassword').value;$('#loginError').style.display='none';
  if(!em||!pw)return $e('loginError','Preencha e-mail e senha.');const btn=document.querySelector('#ltc-login .lbtn');btn.textContent='Verificando...';
- let UU;try{UU=await users()}catch(e){btn.textContent='Entrar';return $e('loginError','Sem conexão com o banco de dados ('+(e.message||e)+'). Confira o config.js e a implantação do Apps Script. Link em uso: '+GS.slice(0,48)+'…')}
+ let UU;const hint=setTimeout(()=>$e('loginError','Conectando ao banco de dados... a primeira chamada do Apps Script pode levar alguns segundos.',1),6000);try{UU=await users();clearTimeout(hint)}catch(e){clearTimeout(hint);btn.textContent='Entrar';return $e('loginError','Sem conexão com o banco de dados ('+(e.message||e)+'). Confira o config.js e a implantação do Apps Script. Link em uso: '+GS.slice(0,48)+'…')}
  const u=UU.find(x=>String(x.email||'').trim().toLowerCase()===em&&String(x.password||'').trim()===pw.trim());btn.textContent='Entrar';
  if(!u)return $e('loginError','E-mail ou senha incorretos.');
  if(String(u.status||'').trim().toLowerCase()!=='approved')return $e('loginError','Acesso pendente de aprovação. Contate o administrador.');
@@ -174,10 +178,10 @@ function pedRm(id){delete cart[id];pedPrev();pedRes()}
 function pedLimpa(){if(!Object.keys(cart).length)return;if(confirm('Remover todos os itens do pedido?')){cart={};pedPrev();pedRes()}}
 // ===== OCs (Master) =====
 const ST={pendente:'Aguardando validação',validada:'Validada',enviada:'Enviada'};
-function ocs(){const L=[...D.ocs].sort((a,b)=>b.data.localeCompare(a.data));
- $('#main').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3>Ordens de compra</h3><button class="btn" onclick="ocNova()">+ Nova OC manual</button></div>`+(L.map(o=>`<div class="card"><div class="row" style="margin:0 0 8px"><div><h3>${o.num} <span class="tag t-${o.status}">${ST[o.status]}</span> ${logBadge(o)}${o.contrato?` <span class="tag">${o.contrato}</span>`:''}</h3><span class="mut">${esc(lbl('forn',o.forn))} · ${o.pedNum} · ${esc(o.setor)}</span></div><div style="flex:0 0 auto;min-width:0;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto">
+function ocsLista(){const L=ocsFiltradas(),nn=$('#ocn');if(nn)nn.textContent=L.length+(L.length!==D.ocs.length?' de '+D.ocs.length:'');
+ $('#ocl').innerHTML=(L.map(o=>`<div class="card"><div class="row" style="margin:0 0 8px"><div><h3>${o.num} <span class="tag t-${o.status}">${ST[o.status]}</span> ${logBadge(o)}${o.contrato?` <span class="tag">${o.contrato}</span>`:''}</h3><span class="mut">${esc(lbl('forn',o.forn))} · ${o.pedNum} · ${esc(o.setor)}</span></div><div style="flex:0 0 auto;min-width:0;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto">
  ${o.status==='pendente'?`<button class="btn g s" onclick="ocEdit('${o.id}')">Editar</button><button class="btn s" onclick="validar('${o.id}')">Validar</button>`:''}${o.status==='validada'?`<button class="btn s" onclick="enviarOC('${o.id}')">Enviar ao fornecedor</button>`:''}<button class="btn g s" onclick="ocPdf('${o.id}')">Baixar PDF</button>${o.status!=='enviada'?`<button class="btn r s" onclick="cancelarOC('${o.id}')">Excluir</button>`:''}</div></div>
- <div class="tw"><table><tr><th>Código</th><th>Item</th><th>Qtd</th><th>Valor un.</th><th>Subtotal</th></tr>${o.itens.map((i,x)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.nome)}</td><td>${o.status==='pendente'?`<input class="q" type="number" value="${i.qtd}" onchange="editQ('${o.id}',${x},this.value)">`:i.qtd+' '+esc(i.un)}</td><td>${brl(i.valor)}</td><td>${brl(i.qtd*i.valor)}</td></tr>`).join('')}${(o.frete||o.ipi||o.outros||o.desc)?`<tr><td colspan="4" style="text-align:right" class="mut">Frete ${brl(o.frete)} · IPI ${brl(o.ipi)} · Outros ${brl(o.outros)} · Desconto −${brl(o.desc)}</td><td></td></tr>`:''}<tr><td colspan="4" style="text-align:right"><b>Total</b></td><td><b>${brl(o.total)}</b></td></tr></table></div></div>`).join('')||'<div class="empty">Nenhuma OC gerada ainda.</div>')}
+ <div class="tw"><table><tr><th>Código</th><th>Item</th><th>Qtd</th><th>Valor un.</th><th>Subtotal</th></tr>${o.itens.map((i,x)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.nome)}</td><td>${o.status==='pendente'?`<input class="q" type="number" value="${i.qtd}" onchange="editQ('${o.id}',${x},this.value)">`:i.qtd+' '+esc(i.un)}</td><td>${brl(i.valor)}</td><td>${brl(i.qtd*i.valor)}</td></tr>`).join('')}${(o.frete||o.ipi||o.outros||o.desc)?`<tr><td colspan="4" style="text-align:right" class="mut">Frete ${brl(o.frete)} · IPI ${brl(o.ipi)} · Outros ${brl(o.outros)} · Desconto −${brl(o.desc)}</td><td></td></tr>`:''}<tr><td colspan="4" style="text-align:right"><b>Total</b></td><td><b>${brl(o.total)}</b></td></tr></table></div></div>`).join('')||`<div class="empty">${D.ocs.length?'Nenhuma OC encontrada com esses filtros.':'Nenhuma OC gerada ainda.'}</div>`)}
 async function editQ(id,x,v){const o=D.ocs.find(o=>o.id===id);o.itens[x].qtd=parseFloat(v)||0;o.total=ocTot(o);await save('ocs',o);ocs()}
 async function validar(id){const o=D.ocs.find(o=>o.id===id);o.status='validada';o.validadaPor=U.n;await save('ocs',o);ocs()}
 async function cancelarOC(id){if(confirm('Excluir esta OC?')){await del('ocs',id);ocs()}}
@@ -208,14 +212,12 @@ async function setUser(id,patch){const u=UL.find(x=>x.id===id);Object.assign(u,p
  try{await gs({action:'update',sheet:'usuarios',id,data:b64(JSON.stringify({json:JSON.stringify(u)})),enc:'b64'});toast('Usuário atualizado')}catch(e){toast('Falha ao gravar')}usrUI()}
 async function delUser(id){if(!confirm('Excluir este usuário?'))return;try{await gs({action:'delete',sheet:'usuarios',id})}catch(e){}UL=UL.filter(x=>x.id!==id);usrUI()}
 // ===== ITENS SEM ACORDO =====
-function cot(){const L=[];D.pedidos.forEach(p=>p.sem.forEach(i=>L.push({p,i})));
- $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:4px">Itens sem acordo</h3><p class="mut" style="margin:0 0 12px">Escolha fornecedor e valor para gerar a OC. Marque "Salvar acordo" para que os próximos pedidos desse item saiam automáticos.</p><div class="tw"><table><tr><th>Pedido</th><th>Setor</th><th>Item</th><th>Qtd</th><th>Fornecedor</th><th>Valor un.</th><th>Salvar acordo</th><th></th></tr>${L.map(({p,i},x)=>`<tr><td>${p.num}</td><td>${esc(p.setor)}</td><td>${esc(lbl('prods',i.prod))}</td><td>${i.qtd}</td><td><select id="cf${x}">${opts('forn')}</select></td><td><input class="q" id="cv${x}" type="number" step="0.01"></td><td><input type="checkbox" id="ca${x}" style="width:auto"></td><td><button class="btn s" onclick="atender('${p.id}','${i.prod}',${x})">Gerar OC</button></td></tr>`).join('')||'<tr><td class="empty" colspan="8">Nenhum item aguardando acordo.</td></tr>'}</table></div></div>`}
 function atender(pid,prod,x){return lock('w',()=>atender_(pid,prod,x))}
 async function atender_(pid,prod,x){const f=$('#cf'+x).value,v=parseFloat($('#cv'+x).value),sv=$('#ca'+x).checked;if(!f||!(v>0))return toast('Escolha fornecedor e valor');
  const p=D.pedidos.find(q=>q.id===pid),i=p.sem.find(s=>s.prod===prod),pr=D.prods.find(q=>q.id===prod),it={prod,qtd:i.qtd,valor:v,codigo:pr.codigo,nome:pr.nome,un:pr.un};
  let oc=D.ocs.find(o=>o.pedido===pid&&o.forn===f&&o.status==='pendente');
  if(oc)oc.itens.push(it);else{oc={id:uid('o'),num:'OC-'+String(maxOC()+1).padStart(4,'0'),forn:f,pedido:pid,pedNum:p.num,setor:p.setor,solic:p.user,data:new Date().toISOString(),itens:[it],status:'pendente',contrato:(ctVig(f)||{}).num};p.ocs.push(oc.id)}
- oc.total=ocTot(oc);p.sem=p.sem.filter(s=>s.prod!==prod);await save('ocs',oc);await save('pedidos',p);
+ oc.total=ocTot(oc);p.semHist=(p.semHist||[]).concat([{prod,qtd:i.qtd,oc:oc.num,forn:f,valor:v,em:new Date().toISOString()}]);p.sem=p.sem.filter(s=>s.prod!==prod);await save('ocs',oc);await save('pedidos',p);
  if(sv&&!D.acordos.some(a=>a.prod===prod&&a.forn===f))await save('acordos',{id:uid('a'),prod,forn:f,valor:v});toast('Item incluído na '+oc.num);cot()}
 // ===== IMPORTAÇÃO DE PRODUTOS =====
 // ===== LEITURA DE ARQUIVOS (CSV/TXT/Excel) =====
@@ -243,12 +245,12 @@ async function importar_(){const f=$('#imf')&&$('#imf').files[0];if(!f)return to
  const H={codigo:['codigo','cod','code','sku','ref','referencia'],nome:['descricao','nome','produto','item','description'],un:['unidade','un','und','medida'],cat:['categoria','grupo','tipo']},
   r0=T[0].map(nrm),achou=k=>r0.findIndex(c=>H[k].includes(c)),temCab=Object.keys(H).filter(k=>achou(k)>=0).length>=2,ix={codigo:0,nome:1,un:2,cat:3};
  if(temCab)Object.keys(H).forEach(k=>{const i=achou(k);if(i>=0)ix[k]=i});
- const L=temCab?T.slice(1):T;let novos=0,atual=0,ign=0;toast('Importando '+L.length+' linha(s)...');
- for(let n=0;n<L.length;n++){const r=L[n],codigo=(r[ix.codigo]||'').trim(),nome=(r[ix.nome]||'').trim();if(!codigo||!nome){ign++;continue}
+ const L=temCab?T.slice(1):T,mp=new Map(D.prods.map(p=>[nrm(p.codigo),p])),mudou=new Set();let novos=0,atual=0,ign=0;toast('Lendo '+L.length+' linha(s)...');
+ for(const r of L){const codigo=(r[ix.codigo]||'').trim(),nome=(r[ix.nome]||'').trim();if(!codigo||!nome){ign++;continue}
   const un=(r[ix.un]||'').trim(),cn=(r[ix.cat]||'').trim();let c=cn?D.cats.find(x=>nrm(x.nome)===nrm(cn)):null;if(cn&&!c){c={id:uid('c'),nome:cn};await save('cats',c)}
-  let o=D.prods.find(x=>nrm(x.codigo)===nrm(codigo));if(o)atual++;else{o={id:uid('p')};novos++}
-  o.codigo=codigo;o.nome=nome;if(un||!o.un)o.un=un||'UN';if(c)o.cat=c.id;else if(!o.cat)o.cat='';
-  await save('prods',o);if(n%10===9)toast('Importando '+(n+1)+'/'+L.length+'...')}
+  const k=nrm(codigo);let o=mp.get(k);if(o){if(!mudou.has(o))atual++}else{o={id:uid('p')};mp.set(k,o);D.prods.push(o);novos++}
+  o.codigo=codigo;o.nome=nome;if(un||!o.un)o.un=un||'UN';if(c)o.cat=c.id;else if(!o.cat)o.cat='';mudou.add(o)}
+ await saveMany('prods',[...mudou]);
  toast(`Importação concluída: ${novos} novo(s), ${atual} atualizado(s)${ign?', '+ign+' linha(s) ignorada(s) (sem código ou descrição)':''}${temCab?'':'. Sem cabeçalho: a 1ª linha também foi importada'}`);go('prods')}
 // ===== STATUS DO E-MAIL (log do Apps Script) =====
 function logBadge(o){const l=(D.log||[]).filter(x=>x.id===o.id).pop();return l&&l.st==='confirmado'?'<span class="tag t-validada">Confirmada pelo fornecedor</span>':l&&l.st==='visualizado'?'<span class="tag">E-mail visualizado</span>':''}
@@ -345,7 +347,7 @@ async function enviarPedido_(){const it=Object.entries(cart).filter(e=>e[1]>0).m
 function pedEdit(id){const p=D.pedidos.find(x=>x.id===id);if(!editavel(p))return toast('OC já validada ou enviada: pedido bloqueado');
  EDP=id;cart={};p.itens.forEach(i=>cart[i.prod]=i.qtd);OBS=p.obs||'';tab='ped';document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==='ped'));pedUI()}
 function meus(){const L=D.pedidos.filter(p=>U.p==='master'||p.setor===U.s).sort((a,b)=>b.data.localeCompare(a.data));
- $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${U.p==='master'?'Todos os pedidos':'Meus pedidos'}</h3><div class="tw"><table><tr><th>Pedido</th><th>Setor</th><th>Data</th><th>Itens</th><th>OCs</th><th>Sem acordo</th><th></th></tr>${L.map(p=>`<tr><td>${p.num}${p.editadoEm?' <span class="mut">(editado)</span>':''}</td><td>${esc(p.setor)}</td><td>${new Date(p.data).toLocaleDateString('pt-BR')}</td><td>${p.itens.length}</td><td>${p.ocs.map(id=>{const o=D.ocs.find(x=>x.id===id);return o?`<span class="tag t-${o.status}">${o.num}</span>`:''}).join(' ')||'—'}</td><td>${p.sem.length?`<span class="tag t-sem">${p.sem.map(i=>esc(lbl('prods',i.prod).split(' — ')[0])).join(', ')}</span>`:'—'}</td><td>${editavel(p)?`<button class="btn g s" onclick="pedEdit('${p.id}')">Editar</button>`:'<span class="mut">OC em andamento</span>'}</td></tr>`).join('')||'<tr><td class="empty" colspan="7">Nenhum pedido ainda.</td></tr>'}</table></div></div>`}
+ $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${U.p==='master'?'Todos os pedidos':'Meus pedidos'}</h3><div class="tw"><table><tr><th>Pedido</th><th>Setor</th><th>Data</th><th>Itens</th><th>OCs</th><th>Sem acordo</th><th></th></tr>${L.map(p=>`<tr><td>${p.num}${p.editadoEm?' <span class="mut">(editado)</span>':''}</td><td>${esc(p.setor)}</td><td>${new Date(p.data).toLocaleDateString('pt-BR')}</td><td>${p.itens.length}</td><td>${p.ocs.map(id=>{const o=D.ocs.find(x=>x.id===id);return o?`<span class="tag t-${o.status}">${o.num}</span>`:''}).join(' ')||'—'}</td><td>${p.sem.length?`<span class="tag t-sem">${p.sem.map(i=>esc(lbl('prods',i.prod).split(' — ')[0])).join(', ')}</span>`:'—'}</td><td style="white-space:nowrap">${editavel(p)?`<button class="btn g s" onclick="pedEdit('${p.id}')">Editar</button>`:'<span class="mut">OC em andamento</span>'} <button class="btn g s" onclick="pedCsv('${p.id}')">CSV</button></td></tr>`).join('')||'<tr><td class="empty" colspan="7">Nenhum pedido ainda.</td></tr>'}</table></div></div>`}
 async function impPedido(){const f=$('#ipf')&&$('#ipf').files[0];if(!f)return toast('Escolha um arquivo');let T;try{T=await lerTabela(f)}catch(e){return toast(e.message)}
  let ok=0;const nf=[],bl=[];T.forEach((r,x)=>{const c=String(r[0]||'').trim(),qt=parseFloat(String(r[1]||'').replace(',','.'));if(x===0&&isNaN(qt))return;
   const p=D.prods.find(p=>nrm(p.codigo)===nrm(c));if(p&&!catOk(p.cat)){bl.push(c);return}if(!p||!(qt>0)){nf.push(c);return}cart[p.id]=(cart[p.id]||0)+qt;ok++});
@@ -473,5 +475,34 @@ function usrCats(id){const u=UL.find(x=>x.id===id),sel=Array.isArray(u.cats)?u.c
  document.body.appendChild(m)}
 function ucMarca(v){document.querySelectorAll('#uclist input').forEach(i=>i.checked=!!v)}
 async function ucSalva(id){const ids=[...document.querySelectorAll('#uclist input:checked')].map(i=>i.value),todas=D.cats.length>0&&ids.length===D.cats.length;$('#umod').remove();await setUser(id,{cats:todas?null:ids})}
+// ===== OCs: filtros =====
+let OFQ={q:'',st:'',f:''};
+function ocsFiltradas(){const q=nrm(OFQ.q);return [...D.ocs].sort((a,b)=>b.data.localeCompare(a.data)).filter(o=>{
+ if(OFQ.f&&o.forn!==OFQ.f)return false;
+ if(OFQ.st==='confirmada'){const l=(D.log||[]).filter(x=>x.id===o.id).pop();if(!(l&&l.st==='confirmado'))return false}else if(OFQ.st&&o.status!==OFQ.st)return false;
+ if(q&&!nrm([o.num,ocLabel(o),o.pedNum,lbl('forn',o.forn),o.setor,o.solic].join(' ')).includes(q))return false;return true})}
+function ocs(){$('#main').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px"><h3>Ordens de compra <span class="tag" id="ocn"></span></h3><button class="btn" onclick="ocNova()">+ Nova OC manual</button></div>
+<div class="card" style="padding:14px 16px"><div class="row" style="margin:0"><div style="flex:2"><label>Buscar por número da OC, pedido ou fornecedor</label><input id="ofq" value="${esc(OFQ.q)}" placeholder="Ex.: OC-0012, PD-0005 ou nome do fornecedor" oninput="OFQ.q=this.value;ocsLista()"></div>
+<div><label>Fornecedor</label><select onchange="OFQ.f=this.value;ocsLista()">${opts('forn',OFQ.f).replace('>Selecione<','>Todos<')}</select></div>
+<div><label>Situação</label><select onchange="OFQ.st=this.value;ocsLista()">${[['','Todas'],['pendente','Aguardando validação'],['validada','Validadas'],['enviada','Enviadas'],['confirmada','Confirmadas pelo fornecedor']].map(x=>`<option value="${x[0]}" ${OFQ.st===x[0]?'selected':''}>${x[1]}</option>`).join('')}</select></div>
+<div style="flex:0 0 auto;min-width:0"><button class="btn g" onclick="OFQ={q:'',st:'',f:''};ocs()">Limpar filtros</button></div></div></div><div id="ocl"></div>`;ocsLista()}
+// ===== SEM ACORDO por pedido + CSV =====
+const pcod=id=>{const p=D.prods.find(x=>x.id===id);return p?p.codigo:'?'},fq=q=>String(q).replace('.',',');
+function semCsv(pid){const m={};(pid?D.pedidos.filter(p=>p.id===pid):D.pedidos).forEach(p=>(p.sem||[]).forEach(i=>{const c=pcod(i.prod);m[c]=(m[c]||0)+i.qtd}));
+ const L=Object.entries(m);if(!L.length)return toast('Nenhum item sem acordo para baixar');
+ const p=pid&&D.pedidos.find(x=>x.id===pid);baixar(p?'pedido_'+p.num+'_sem_acordo.csv':'itens_sem_acordo_'+hoje()+'.csv','codigo;quantidade\n'+L.map(e=>e[0]+';'+fq(e[1])).join('\n'))}
+function pedCsv(pid){const p=D.pedidos.find(x=>x.id===pid);baixar('pedido_'+p.num+'.csv','codigo;quantidade\n'+p.itens.map(i=>pcod(i.prod)+';'+fq(i.qtd)).join('\n'))}
+function cot(){const G=D.pedidos.filter(p=>(p.sem&&p.sem.length)||(p.semHist&&p.semHist.length)).sort((a,b)=>b.data.localeCompare(a.data));let x=0;
+ const nm=id=>{const p=D.prods.find(z=>z.id===id);return p?[p.codigo,p.nome]:['?','(produto removido)']};
+ $('#main').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px"><div><h3>Itens sem acordo, por pedido</h3><span class="mut">Escolha fornecedor e valor para gerar a OC ou baixe o CSV (código;quantidade) para cotar fora do sistema. "Salvar acordo" faz os próximos pedidos saírem automáticos.</span></div>${G.some(p=>p.sem&&p.sem.length)?`<button class="btn g" onclick="semCsv()">Baixar CSV de todos os pendentes</button>`:''}</div>`+
+ (G.map(p=>{const pend=p.sem||[],hist=p.semHist||[];return`<div class="card"><div class="row" style="margin:0 0 8px"><div><h3>${esc(p.num)} ${pend.length?`<span class="tag t-sem">${pend.length} item(ns) sem acordo</span>`:'<span class="tag t-validada">todos atendidos</span>'}</h3><span class="mut">${esc(p.setor)} · ${esc(p.user||'')} · ${new Date(p.data).toLocaleDateString('pt-BR')}</span></div>${pend.length?`<div style="flex:0 0 auto;min-width:0;display:flex;gap:6px;margin-left:auto"><button class="btn g s" onclick="semCsv('${p.id}')">Baixar CSV</button></div>`:''}</div>
+ ${pend.length?`<div class="tw"><table><tr><th>Código</th><th>Item</th><th>Qtd</th><th>Fornecedor</th><th>Valor un.</th><th>Salvar acordo</th><th></th></tr>${pend.map(i=>{const k=x++,n=nm(i.prod);return`<tr><td>${esc(n[0])}</td><td>${esc(n[1])}</td><td>${i.qtd}</td><td><select id="cf${k}">${opts('forn')}</select></td><td><input class="q" id="cv${k}" type="number" step="0.01"></td><td><input type="checkbox" id="ca${k}" style="width:auto"></td><td><button class="btn s" onclick="atender('${p.id}','${i.prod}',${k})">Gerar OC</button></td></tr>`}).join('')}</table></div>`:''}
+ ${hist.length?`<div class="mut" style="margin-top:8px">Já atendidos: ${hist.map(h=>esc(nm(h.prod)[0])+' → '+esc(h.oc)+' ('+esc(lbl('forn',h.forn))+')').join(' · ')}</div>`:''}</div>`}).join('')||'<div class="empty">Nenhum pedido com itens sem acordo.</div>')}
+// ===== Gravação em lote (importações grandes) =====
+async function saveMany(k,objs){objs.forEach(o=>{const i=D[k].findIndex(x=>x.id===o.id);if(i<0)D[k].push(o);else D[k][i]=o});try{localStorage.setItem('vn_'+k,JSON.stringify(D[k]))}catch(e){}
+ for(let i=0;i<objs.length;i+=150){const part=objs.slice(i,i+150);toast('Gravando '+Math.min(i+150,objs.length)+' de '+objs.length+'...');let r;
+  try{r=await gsPost({action:'batchInsert',sheet:SH[k],rows:part.map(o=>({id:o.id,json:JSON.stringify(o)}))})}catch(e){r={error:e.message}}
+  if(!r||r.status!=='ok'){for(const o of part)await save_(k,o)}}}
+async function testaConexao(){const t0=Date.now();$e('loginError','Testando conexão...',1);try{const r=await gs({action:'test'});$e('loginError',r.status==='ok'?'✅ Banco conectado em '+((Date.now()-t0)/1000).toFixed(1)+' s.':'⚠️ Resposta inesperada do servidor: '+JSON.stringify(r).slice(0,120),r.status==='ok')}catch(e){$e('loginError','❌ Sem conexão: '+(e.message||e)+'. Link em uso: '+GS.slice(0,48)+'…')}}
 const R={ped:()=>{EDP=null;cart={};OBS='';PQ='';PC='';pedUI()},meus,ocs,rel,usr,cot,ctr,prods:()=>{crud('prods');impUI()},acordos:()=>{crud('acordos');$('#main').insertAdjacentHTML('afterbegin',vencBanner())},forn:()=>crud('forn'),cats:()=>crud('cats')};
 </script></body></html>
