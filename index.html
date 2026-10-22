@@ -67,7 +67,7 @@ canvas.sg{background:#fff;border-radius:6px;width:100%;max-width:420px;height:13
 <select class="linput" id="regRole"><option value="user">Solicitante</option><option value="admin">Administrador (Compras)</option></select>
 <p style="font-size:.74rem;color:var(--tx3);margin:0 0 12px">⚠️ Acesso pendente até aprovação do administrador.</p><button class="lbtn" onclick="doRegister()">Solicitar Cadastro</button><div class="lerror" id="registerError"></div></div>
 </div></div>
-<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-6</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
+<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-9</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
 <nav id="nav"></nav><main id="main"></main></div><div id="toast"></div><div id="sign" style="display:none"></div><div id="printArea"></div>
 <script>
 // ===== CONFIG =====
@@ -99,7 +99,7 @@ const $e=(id,m,ok)=>{const e=$('#'+id);e.style.cssText='display:block'+(ok?';bac
 function switchLTab(t,el){document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('active'));el.classList.add('active');$('#ltc-login').classList.toggle('active',t==='login');$('#ltc-register').classList.toggle('active',t==='register')}
 function togglePw(id,b){const i=$('#'+id);i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁':'🙈'}
 async function users(){const r=await gs({action:'getAll',sheet:'usuarios'});if(!Array.isArray(r))throw new Error(r&&r.error?r.error:'resposta inválida do servidor');
- return r.map(x=>{try{return{...JSON.parse(x.json),id:x.id}}catch(e){const p=String(x.perfil||'').toLowerCase(),st=String(x.status||'').toLowerCase();return{id:x.id,name:x.nome,email:x.email,password:x.senha,setor:x.setor,role:p==='master'||p==='admin'?'admin':'user',status:st==='aprovado'||st==='approved'?'approved':st==='revogado'?'revoked':'pending'}}})}
+ return r.map(x=>{try{return{...JSON.parse(x.json),id:x.id}}catch(e){const p=String(x.perfil||'').toLowerCase(),st=String(x.status||'').toLowerCase();return{id:x.id,name:x.nome,email:x.email,password:x.senha,setor:x.setor,role:p==='master'||p==='admin'?'admin':'user',status:st==='aprovado'||st==='approved'?'approved':st==='revogado'?'revoked':'pending',cats:(()=>{const c=String(x.categorias||'').trim();return!c||c.toUpperCase()==='TODAS'?null:c.toUpperCase()==='NENHUMA'?[]:c.split(',')})()}}})}
 async function doLogin(){const em=$('#loginEmail').value.trim().toLowerCase(),pw=$('#loginPassword').value;$('#loginError').style.display='none';
  if(!em||!pw)return $e('loginError','Preencha e-mail e senha.');const btn=document.querySelector('#ltc-login .lbtn');btn.textContent='Verificando...';
  let UU;try{UU=await users()}catch(e){btn.textContent='Entrar';return $e('loginError','Sem conexão com o banco de dados ('+(e.message||e)+'). Confira o config.js e a implantação do Apps Script. Link em uso: '+GS.slice(0,48)+'…')}
@@ -112,12 +112,12 @@ function doRegister(){return lock('w',()=>doRegister_())}
 async function doRegister_(){const n=$('#regName').value.trim(),em=$('#regEmail').value.trim(),st=$('#regSetor').value.trim(),pw=$('#regPassword').value,role=$('#regRole').value;$('#registerError').style.display='none';
  if(!n||!em||pw.length<6||(role==='user'&&!st))return $e('registerError','Preencha todos os campos (senha mín. 6 caracteres).');
  let UR=[];try{UR=await users()}catch(e){return $e('registerError','Sem conexão com o banco de dados.')}if(UR.some(x=>String(x.email||'').trim().toLowerCase()===em.toLowerCase()))return $e('registerError','E-mail já cadastrado.');
- const nu={id:'u_'+Date.now(),name:n,email:em,password:pw,role,setor:st,status:'pending',isCreator:'false'};
+ const nu={id:'u_'+Date.now(),name:n,email:em,password:pw,role,setor:st,status:'pending',isCreator:'false',cats:[]};
  try{const r=await gs({action:'insert',sheet:'usuarios',data:b64(JSON.stringify(nu)),enc:'b64'});r.status==='ok'?$e('registerError','✅ Cadastro solicitado! Aguarde aprovação do administrador.',1):$e('registerError','❌ Erro ao salvar: '+(r.error||'tente novamente'))}catch(e){$e('registerError','❌ Sem conexão com o banco de dados.')}}
 async function lembrado(){try{const sv=JSON.parse(localStorage.getItem('vnUser'));if(!sv)return;const u=(await users()).find(x=>String(x.email||'').trim().toLowerCase()===String(sv.email).toLowerCase()&&String(x.password||'').trim()===String(sv.pass).trim());
  if(u&&String(u.status||'').trim().toLowerCase()==='approved')start(u);else if(u)localStorage.removeItem('vnUser')}catch(e){}}
 function sair(){try{localStorage.removeItem('vnUser')}catch(e){}location.reload()}
-async function start(u){const master=u.role==='admin';U={e:u.email,n:u.name,s:u.setor||(master?'Compras':'Geral'),p:master?'master':'sol'};
+async function start(u){const master=u.role==='admin';U={e:u.email,n:u.name,s:u.setor||(master?'Compras':'Geral'),p:master?'master':'sol',cats:master?null:(Array.isArray(u.cats)?u.cats:null)};
  $('#login').style.display='none';$('#app').style.display='block';$('#hl').src=document.querySelector('#login img').src;$('#who').textContent=U.n+' · '+U.s+(master?' (Master)':'');
  await Promise.all(Object.keys(SH).map(load));$('#dot').style.background=DBOK?'#22a06b':'#e74c3c';
  try{const lg=await gs({action:'getAll',sheet:'oc_emails_log'});D.log=Array.isArray(lg)?lg.map(r=>({id:String(r.id),st:String(r.timestamp)})):[]}catch(e){D.log=[]}
@@ -150,11 +150,28 @@ async function gravar_(k,id){const o=D[k].find(x=>x.id===id)||{id:uid(k[0])};
  await save(k,o);toast('Salvo');go(k);window.scrollTo({top:0})}
 async function rem(k,id){if(confirm('Excluir este registro?')){await del(k,id);go(k)}}
 // ===== NOVO PEDIDO =====
-function pedUI(){const q=($('#pq')||{}).value||'',c=($('#pc')||{}).value||'';
- const L=D.prods.filter(p=>(!c||p.cat===c)&&(p.nome+p.codigo).toLowerCase().includes(q.toLowerCase()));
- $('#main').innerHTML=(EDP?'':`<div class="card"><div class="row" style="margin:0"><div style="flex:2"><h3>Importar pedido por arquivo</h3><span class="mut">CSV com as colunas codigo;quantidade. Os itens entram no pedido abaixo para conferência.</span></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="ipf" accept=".csv,.txt,.xlsx,.xls" style="width:230px"><button class="btn" onclick="impPedido()">Importar</button><button class="btn g" onclick="modeloPedido()">Modelo CSV</button></div></div></div>`)+`<div class="card"><h3 style="margin-bottom:12px">${EDP?'Editar pedido '+esc(D.pedidos.find(p=>p.id===EDP).num):'Novo pedido'} — ${esc(U.s)}</h3><div class="row"><div><label>Buscar item</label><input id="pq" value="${esc(q)}" oninput="pedUI();$('#pq').focus()"></div><div><label>Categoria</label><select id="pc" onchange="pedUI()"><option value="">Todas</option>${D.cats.map(x=>`<option value="${x.id}" ${x.id===c?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div></div>
- <div class="tw"><table><tr><th>Código</th><th>Item</th><th>Un.</th><th>Fornecedor acordado</th><th>Qtd</th></tr>${L.map(p=>{const a=best(p.id);return`<tr><td>${esc(p.codigo)}</td><td>${esc(p.nome)}</td><td>${esc(p.un)}</td><td>${a?`${esc(lbl('forn',a.forn))} <span class="mut">${brl(a.valor)}</span>`:'<span class="tag t-sem">sem acordo</span>'}</td><td><input class="q" type="number" min="0" value="${cart[p.id]||''}" onchange="cart['${p.id}']=parseFloat(this.value)||0;"></td></tr>`}).join('')||'<tr><td class="empty" colspan="5">Nenhum produto encontrado.</td></tr>'}</table></div>
- <div style="margin-top:12px"><label>Observações</label><textarea id="po" rows="2" oninput="OBS=this.value">${esc(OBS)}</textarea></div><button class="btn" style="margin-top:12px" onclick="enviarPedido()">${EDP?'Salvar alterações':'Enviar pedido'}</button>${EDP?'<button class="btn g" style="margin:12px 0 0 8px" onclick="R.ped()">Cancelar edição</button>':''}</div>`}
+let PQ='',PC='';
+const pedAco=id=>{const a=best(id);return a?`${esc(lbl('forn',a.forn))} <span class="mut">${brl(a.valor)}</span>`:'<span class="tag t-sem">sem acordo</span>'};
+function pedUI(){const ed=EDP?D.pedidos.find(p=>p.id===EDP):null;
+ $('#main').innerHTML=(ed?'':`<details class="card" style="padding:14px 20px"><summary style="cursor:pointer;font-weight:600">Importar pedido por arquivo <span class="mut" style="font-weight:400">· CSV ou Excel (codigo;quantidade)</span></summary><div class="row" style="margin:12px 0 0"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="ipf" accept=".csv,.txt,.xlsx,.xls" style="width:260px"><button class="btn" onclick="impPedido()">Importar</button><button class="btn g" onclick="modeloPedido()">Modelo CSV</button></div><div class="mut" style="flex:2">Os itens entram na prévia do pedido logo abaixo.</div></div></details>`)+
+ `<div class="card"><h3 style="margin-bottom:12px">${ed?'Editar pedido '+esc(ed.num):'Novo pedido'} — ${esc(U.s)} <span class="mut" style="font-weight:400">· 1. Busque e inclua os itens</span></h3>
+<div class="row"><div><label>Buscar item</label><input id="pq" value="${esc(PQ)}" placeholder="Digite o código ou o nome do item..." oninput="PQ=this.value;pedRes()"></div><div><label>Categoria</label><select id="pc" onchange="PC=this.value;pedRes()"><option value="">${U.p==='master'||!Array.isArray(U.cats)?'Todas':'Todas as liberadas'}</option>${catsVis().map(x=>`<option value="${x.id}" ${x.id===PC?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div></div><div id="pres"></div></div>
+<div class="card"><h3 style="margin-bottom:12px">Prévia do pedido <span class="tag" id="pcnt">0 item(ns)</span> <span class="mut" style="font-weight:400">· 2. Confira e envie</span></h3><div id="ppre"></div>
+<div style="margin-top:14px"><label>Observações</label><textarea id="po" rows="2" oninput="OBS=this.value">${esc(OBS)}</textarea></div>
+<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn" onclick="enviarPedido()">${ed?'Salvar alterações':'Enviar pedido'}</button>${ed?'<button class="btn g" onclick="R.ped()">Cancelar edição</button>':'<button class="btn g" onclick="pedLimpa()">Limpar pedido</button>'}</div></div>`;
+ pedRes();pedPrev();$('#pq').focus()}
+function pedRes(){const q=nrm(PQ),L=prodsVis().filter(p=>(!PC||p.cat===PC)&&(!q||nrm(p.codigo+' '+p.nome).includes(q))),T=L.slice(0,30);
+ $('#pres').innerHTML=`<div class="tw" style="max-height:250px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px"><table><tr><th style="position:sticky;top:0;background:var(--s)">Código</th><th>Item</th><th>Un.</th><th>Fornecedor acordado</th><th>Quantidade</th></tr>${T.map(p=>`<tr><td>${esc(p.codigo)}</td><td>${esc(p.nome)}${cart[p.id]?` <span class="tag t-validada">no pedido: ${cart[p.id]}</span>`:''}</td><td>${esc(p.un)}</td><td>${pedAco(p.id)}</td><td style="white-space:nowrap"><input class="q" id="qa_${p.id}" type="number" min="0" step="any" value="1" style="width:78px" onkeydown="if(event.key==='Enter')pedAdd('${p.id}')"> <button class="btn s" onclick="pedAdd('${p.id}')">+ Incluir</button></td></tr>`).join('')||`<tr><td class="empty" colspan="5">${semCats()?'Nenhuma categoria foi liberada para o seu usuário. Peça ao administrador (Compras) para liberar.':'Nenhum produto encontrado.'}</td></tr>`}</table></div>${L.length>30?`<div class="mut" style="margin-top:8px">Mostrando 30 de ${L.length} itens. Refine a busca para ver os demais.</div>`:''}`}
+function pedAdd(id){const el=$('#qa_'+id),q=parseFloat(String(el.value).replace(',','.'));if(!(q>0))return toast('Informe uma quantidade maior que zero');
+ const ja=cart[id];cart[id]=(cart[id]||0)+q;PQ='';const pq=$('#pq');pq.value='';pedRes();pedPrev();pq.focus();toast(ja?'Item já estava no pedido: quantidade somada':'Item incluído no pedido')}
+function pedPrev(){const ids=Object.keys(cart).filter(id=>cart[id]>0);let tot=0,sem=0;
+ const rows=ids.map(id=>{const p=D.prods.find(x=>x.id===id)||{codigo:'?',nome:'(produto removido do cadastro)',un:''},a=best(id),sub=a?a.valor*cart[id]:0;tot+=sub;if(!a)sem++;
+  return `<tr><td>${esc(p.codigo)}</td><td>${esc(p.nome)}</td><td>${esc(p.un)}</td><td>${pedAco(id)}</td><td><input class="q" type="number" min="0" step="any" value="${cart[id]}" onchange="pedQtd('${id}',this.value)"></td><td>${a?brl(sub):'—'}</td><td><button class="btn r s" onclick="pedRm('${id}')">×</button></td></tr>`}).join('');
+ $('#pcnt').textContent=ids.length+' item(ns)';
+ $('#ppre').innerHTML=`<div class="tw"><table><tr><th>Código</th><th>Item</th><th>Un.</th><th>Fornecedor acordado</th><th>Qtd</th><th>Subtotal est.</th><th></th></tr>${rows||'<tr><td class="empty" colspan="7">Nenhum item incluído ainda. Use a busca acima para adicionar itens ao pedido.</td></tr>'}</table></div>${ids.length?`<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px"><span class="mut">${sem?sem+' item(ns) sem acordo seguirão para cotação do Compras.':'Todos os itens têm fornecedor acordado.'}</span><b>Total estimado: ${brl(tot)}</b></div>`:''}`}
+function pedQtd(id,v){const q=parseFloat(String(v).replace(',','.'));if(q>0)cart[id]=q;else delete cart[id];pedPrev();pedRes()}
+function pedRm(id){delete cart[id];pedPrev();pedRes()}
+function pedLimpa(){if(!Object.keys(cart).length)return;if(confirm('Remover todos os itens do pedido?')){cart={};pedPrev();pedRes()}}
 // ===== OCs (Master) =====
 const ST={pendente:'Aguardando validação',validada:'Validada',enviada:'Enviada'};
 function ocs(){const L=[...D.ocs].sort((a,b)=>b.data.localeCompare(a.data));
@@ -185,8 +202,8 @@ function csv(){const h='codigo;descricao;categoria;unidade;fornecedor;quantidade
 let UL=[];
 async function usr(){$('#main').innerHTML='<div class="empty">Carregando usuários...</div>';UL=await users();usrUI()}
 function usrUI(){const ord={pending:0,approved:1},L=[...UL].sort((a,b)=>(ord[a.status]??2)-(ord[b.status]??2));
- $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">Aprovação de usuários</h3><div class="tw"><table><tr><th>Nome</th><th>E-mail</th><th>Setor</th><th>Perfil</th><th>Status</th><th></th></tr>${L.map(u=>{const me=u.email===U.e,st=u.status==='approved'?['validada','Aprovado']:u.status==='pending'?['pendente','Pendente']:['sem','Revogado'];
- return`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.setor||'—')}</td><td><select style="width:150px" ${me?'disabled':''} onchange="setUser('${u.id}',{role:this.value})"><option value="user" ${u.role!=='admin'?'selected':''}>Solicitante</option><option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option></select></td><td><span class="tag t-${st[0]}">${st[1]}</span></td><td>${u.status!=='approved'?`<button class="btn s" onclick="setUser('${u.id}',{status:'approved'})">Aprovar</button> `:''}${u.status==='approved'&&!me?`<button class="btn g s" onclick="setUser('${u.id}',{status:'revoked'})">Revogar</button> `:''}${me?'':`<button class="btn r s" onclick="delUser('${u.id}')">Excluir</button>`}</td></tr>`}).join('')||'<tr><td class="empty" colspan="6">Nenhum usuário cadastrado.</td></tr>'}</table></div></div>`}
+ $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">Aprovação de usuários</h3><div class="tw"><table><tr><th>Nome</th><th>E-mail</th><th>Setor</th><th>Categorias</th><th>Perfil</th><th>Status</th><th></th></tr>${L.map(u=>{const me=u.email===U.e,st=u.status==='approved'?['validada','Aprovado']:u.status==='pending'?['pendente','Pendente']:['sem','Revogado'];
+ return`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.setor||'—')}</td><td style="white-space:nowrap">${catRes(u)}${u.role==='admin'?'':`<button class="btn g s" onclick="usrCats('${u.id}')">Editar</button>`}</td><td><select style="width:150px" ${me?'disabled':''} onchange="setUser('${u.id}',{role:this.value})"><option value="user" ${u.role!=='admin'?'selected':''}>Solicitante</option><option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option></select></td><td><span class="tag t-${st[0]}">${st[1]}</span></td><td>${u.status!=='approved'?`<button class="btn s" onclick="usrAprova('${u.id}')">Aprovar</button> `:''}${u.status==='approved'&&!me?`<button class="btn g s" onclick="setUser('${u.id}',{status:'revoked'})">Revogar</button> `:''}${me?'':`<button class="btn r s" onclick="delUser('${u.id}')">Excluir</button>`}</td></tr>`}).join('')||'<tr><td class="empty" colspan="7">Nenhum usuário cadastrado.</td></tr>'}</table></div></div>`}
 async function setUser(id,patch){const u=UL.find(x=>x.id===id);Object.assign(u,patch);
  try{await gs({action:'update',sheet:'usuarios',id,data:b64(JSON.stringify({json:JSON.stringify(u)})),enc:'b64'});toast('Usuário atualizado')}catch(e){toast('Falha ao gravar')}usrUI()}
 async function delUser(id){if(!confirm('Excluir este usuário?'))return;try{await gs({action:'delete',sheet:'usuarios',id})}catch(e){}UL=UL.filter(x=>x.id!==id);usrUI()}
@@ -320,6 +337,7 @@ async function gerarOCs(ped){const grp={},ex=D.ocs.filter(o=>o.pedido===ped.id);
  ped.ocs=[...ids,...ex.filter(o=>o.status!=='pendente').map(o=>o.id)]}
 function enviarPedido(){return lock('w',()=>enviarPedido_())}
 async function enviarPedido_(){const it=Object.entries(cart).filter(e=>e[1]>0).map(e=>({prod:e[0],qtd:e[1]}));if(!it.length)return toast('Informe a quantidade de ao menos um item');
+ if(it.some(i=>{const p=D.prods.find(x=>x.id===i.prod);return p&&!catOk(p.cat)}))return toast('O pedido tem item de categoria não liberada para o seu usuário. Remova-o para enviar.');
  let ped;if(EDP){ped=D.pedidos.find(p=>p.id===EDP);if(!editavel(ped))return toast('Este pedido tem OC já validada ou enviada e não pode mais ser alterado');ped.itens=it;ped.obs=OBS;ped.editadoEm=new Date().toISOString();ped.editadoPor=U.n}
  else ped={id:uid('p'),num:'PD-'+String(maxPed()+1).padStart(4,'0'),setor:U.s,user:U.n,data:new Date().toISOString(),obs:OBS,itens:it,ocs:[],sem:[]};
  const ed=!!EDP;await gerarOCs(ped);await save('pedidos',ped);cart={};EDP=null;OBS='';
@@ -329,9 +347,9 @@ function pedEdit(id){const p=D.pedidos.find(x=>x.id===id);if(!editavel(p))return
 function meus(){const L=D.pedidos.filter(p=>U.p==='master'||p.setor===U.s).sort((a,b)=>b.data.localeCompare(a.data));
  $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${U.p==='master'?'Todos os pedidos':'Meus pedidos'}</h3><div class="tw"><table><tr><th>Pedido</th><th>Setor</th><th>Data</th><th>Itens</th><th>OCs</th><th>Sem acordo</th><th></th></tr>${L.map(p=>`<tr><td>${p.num}${p.editadoEm?' <span class="mut">(editado)</span>':''}</td><td>${esc(p.setor)}</td><td>${new Date(p.data).toLocaleDateString('pt-BR')}</td><td>${p.itens.length}</td><td>${p.ocs.map(id=>{const o=D.ocs.find(x=>x.id===id);return o?`<span class="tag t-${o.status}">${o.num}</span>`:''}).join(' ')||'—'}</td><td>${p.sem.length?`<span class="tag t-sem">${p.sem.map(i=>esc(lbl('prods',i.prod).split(' — ')[0])).join(', ')}</span>`:'—'}</td><td>${editavel(p)?`<button class="btn g s" onclick="pedEdit('${p.id}')">Editar</button>`:'<span class="mut">OC em andamento</span>'}</td></tr>`).join('')||'<tr><td class="empty" colspan="7">Nenhum pedido ainda.</td></tr>'}</table></div></div>`}
 async function impPedido(){const f=$('#ipf')&&$('#ipf').files[0];if(!f)return toast('Escolha um arquivo');let T;try{T=await lerTabela(f)}catch(e){return toast(e.message)}
- let ok=0;const nf=[];T.forEach((r,x)=>{const c=String(r[0]||'').trim(),qt=parseFloat(String(r[1]||'').replace(',','.'));if(x===0&&isNaN(qt))return;
-  const p=D.prods.find(p=>nrm(p.codigo)===nrm(c));if(!p||!(qt>0)){nf.push(c);return}cart[p.id]=(cart[p.id]||0)+qt;ok++});
- pedUI();toast(ok+' itens importados'+(nf.length?'. Não encontrados: '+nf.slice(0,8).join(', ')+(nf.length>8?'…':''):'. Confira e envie o pedido.'))}
+ let ok=0;const nf=[],bl=[];T.forEach((r,x)=>{const c=String(r[0]||'').trim(),qt=parseFloat(String(r[1]||'').replace(',','.'));if(x===0&&isNaN(qt))return;
+  const p=D.prods.find(p=>nrm(p.codigo)===nrm(c));if(p&&!catOk(p.cat)){bl.push(c);return}if(!p||!(qt>0)){nf.push(c);return}cart[p.id]=(cart[p.id]||0)+qt;ok++});
+ pedUI();toast(ok+' itens incluídos na prévia do pedido'+(bl.length?'. Sem permissão (categoria não liberada): '+bl.slice(0,6).join(', ')+(bl.length>6?'…':''):'')+(nf.length?'. Não encontrados: '+nf.slice(0,8).join(', ')+(nf.length>8?'…':''):'. Confira a prévia e envie o pedido.'))}
 function modeloPedido(){baixar('modelo_pedido.csv','codigo;quantidade\n'+D.prods.slice(0,3).map(p=>p.codigo+';10').join('\n'))}
 // ===== OC MANUAL =====
 let OF=null;
@@ -436,5 +454,24 @@ function crudDup(k){return lock('w',async()=>{const G=dupGrupos(k),n=G.reduce((s
  if(!confirm('Foram encontrados '+n+' registro(s) duplicado(s). Manter o mais antigo de cada grupo, transferir os vínculos (acordos, contratos, OCs e pedidos) para ele e apagar os repetidos?'))return;
  toast('Limpando duplicados...');for(const g of G)for(const d of g.slice(1)){await remap(k,d.id,g[0].id);await del(k,d.id)}
  toast(n+' duplicado(s) removido(s)');go(k)})}
-const R={ped:()=>{EDP=null;cart={};OBS='';pedUI()},meus,ocs,rel,usr,cot,ctr,prods:()=>{crud('prods');impUI()},acordos:()=>{crud('acordos');$('#main').insertAdjacentHTML('afterbegin',vencBanner())},forn:()=>crud('forn'),cats:()=>crud('cats')};
+// ===== ACESSO POR CATEGORIA =====
+// U.cats: null = todas as categorias | [] = nenhuma | [ids] = somente essas. Master sempre vê tudo.
+const catOk=c=>U.p==='master'||!Array.isArray(U.cats)||U.cats.includes(c);
+const prodsVis=()=>D.prods.filter(p=>catOk(p.cat)),catsVis=()=>D.cats.filter(c=>catOk(c.id));
+const semCats=()=>U.p!=='master'&&Array.isArray(U.cats)&&!U.cats.length;
+function catRes(u){if(u.role==='admin')return'<span class="mut">Todas (Master)</span>';
+ if(!Array.isArray(u.cats))return'<span class="tag t-validada">Todas</span> ';
+ if(!u.cats.length)return'<span class="tag t-sem">Nenhuma</span> ';
+ const ok=u.cats.filter(id=>D.cats.some(c=>c.id===id));return`<span class="tag" title="${esc(ok.map(id=>lbl('cats',id)).join(', '))}">${ok.length} de ${D.cats.length}</span> `}
+async function usrAprova(id){await setUser(id,{status:'approved'});const u=UL.find(x=>x.id===id);if(u&&u.role!=='admin'&&Array.isArray(u.cats)&&!u.cats.length)usrCats(id)}
+function usrCats(id){const u=UL.find(x=>x.id===id),sel=Array.isArray(u.cats)?u.cats:D.cats.map(c=>c.id);const old=$('#umod');if(old)old.remove();
+ const m=document.createElement('div');m.id='umod';m.style.cssText='position:fixed;inset:0;background:rgba(16,24,40,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px';
+ m.innerHTML=`<div class="card" style="width:460px;max-width:100%;max-height:85vh;overflow:auto;margin:0"><h3>Categorias liberadas</h3><div class="mut" style="margin:4px 0 12px">${esc(u.name)} · ${esc(u.setor||'sem setor')}. O usuário só vê, busca e pede itens das categorias marcadas.</div>
+<div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn g s" onclick="ucMarca(1)">Marcar todas</button><button class="btn g s" onclick="ucMarca(0)">Desmarcar todas</button></div>
+<div id="uclist">${D.cats.map(c=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 0;font-size:.88rem;color:var(--tx);margin:0"><input type="checkbox" value="${c.id}" ${sel.includes(c.id)?'checked':''} style="width:auto"> ${esc(c.nome)} <span class="mut">(${D.prods.filter(p=>p.cat===c.id).length} itens)</span></label>`).join('')||'<div class="empty">Nenhuma categoria cadastrada.</div>'}</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn g" onclick="$('#umod').remove()">Cancelar</button><button class="btn" onclick="ucSalva('${id}')">Salvar</button></div></div>`;
+ document.body.appendChild(m)}
+function ucMarca(v){document.querySelectorAll('#uclist input').forEach(i=>i.checked=!!v)}
+async function ucSalva(id){const ids=[...document.querySelectorAll('#uclist input:checked')].map(i=>i.value),todas=D.cats.length>0&&ids.length===D.cats.length;$('#umod').remove();await setUser(id,{cats:todas?null:ids})}
+const R={ped:()=>{EDP=null;cart={};OBS='';PQ='';PC='';pedUI()},meus,ocs,rel,usr,cot,ctr,prods:()=>{crud('prods');impUI()},acordos:()=>{crud('acordos');$('#main').insertAdjacentHTML('afterbegin',vencBanner())},forn:()=>crud('forn'),cats:()=>crud('cats')};
 </script></body></html>
