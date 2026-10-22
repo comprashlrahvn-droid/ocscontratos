@@ -1,6 +1,7 @@
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><script src="config.js"></script>
 <title>Vila Nova — Pedidos e Ordens de Compra</title>
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -66,7 +67,7 @@ canvas.sg{background:#fff;border-radius:6px;width:100%;max-width:420px;height:13
 <select class="linput" id="regRole"><option value="user">Solicitante</option><option value="admin">Administrador (Compras)</option></select>
 <p style="font-size:.74rem;color:var(--tx3);margin:0 0 12px">⚠️ Acesso pendente até aprovação do administrador.</p><button class="lbtn" onclick="doRegister()">Solicitar Cadastro</button><div class="lerror" id="registerError"></div></div>
 </div></div>
-<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-4</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
+<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-6</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
 <nav id="nav"></nav><main id="main"></main></div><div id="toast"></div><div id="sign" style="display:none"></div><div id="printArea"></div>
 <script>
 // ===== CONFIG =====
@@ -135,9 +136,10 @@ const E={cats:{t:'Categorias',f:[['nome','Nome da categoria']]},
  forn:{t:'Fornecedores',f:[['nome','Razão social'],['cnpj','CNPJ'],['email','E-mails (separe por vírgula)'],['cond','Cond. pagamento'],['contato','Contato'],['telefone','Telefone']]},
  prods:{t:'Produtos',f:[['codigo','Código'],['nome','Descrição'],['un','Unidade'],['cat','Categoria','cats']]},
  acordos:{t:'Acordos de valor',f:[['prod','Produto','prods'],['forn','Fornecedor','forn'],['valor','Valor acordado (R$)','num'],['validade','Validade (opcional)','date']]}};
-function crud(k,edit){const e=E[k],o=D[k].find(x=>x.id===edit)||{};
- $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${e.t}</h3><div class="row">${e.f.map(f=>`<div><label>${f[1]}</label>${f[2]&&f[2]!=='num'&&f[2]!=='date'?`${D[f[2]].length>8?`<input placeholder="Buscar..." oninput="filtraSel(this,'f_${f[0]}','${f[2]}')" style="margin-bottom:6px">`:''}<select id="f_${f[0]}">${opts(f[2],o[f[0]])}</select>`:`<input id="f_${f[0]}" ${f[2]==='num'?'type="number" step="0.01"':f[2]==='date'?'type="date"':''} value="${esc(o[f[0]])}">`}</div>`).join('')}
- <button class="btn" onclick="gravar('${k}','${edit||''}')">${edit?'Salvar':'Adicionar'}</button></div>
+function crud(k,edit){crud_(k,edit);if(edit){window.scrollTo({top:0,behavior:'smooth'});const i=$('#f_'+E[k].f[0][0]);if(i)setTimeout(()=>i.focus(),350)}}
+function crud_(k,edit){const e=E[k],o=D[k].find(x=>x.id===edit)||{};
+ $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${e.t}${edit?' <span class="tag t-pendente">editando</span>':''}</h3><div class="row">${e.f.map(f=>`<div><label>${f[1]}</label>${f[2]&&f[2]!=='num'&&f[2]!=='date'?`${D[f[2]].length>8?`<input placeholder="Buscar..." oninput="filtraSel(this,'f_${f[0]}','${f[2]}')" style="margin-bottom:6px">`:''}<select id="f_${f[0]}">${opts(f[2],o[f[0]])}</select>`:`<input id="f_${f[0]}" ${f[2]==='num'?'type="number" step="0.01"':f[2]==='date'?'type="date"':''} value="${esc(o[f[0]])}">`}</div>`).join('')}
+ <button class="btn" onclick="gravar('${k}','${edit||''}')">${edit?'Salvar alterações':'Adicionar'}</button>${edit?`<button class="btn g" onclick="R.${k}()">Cancelar</button>`:''}</div>
  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><input type="search" placeholder="Buscar em ${e.t.toLowerCase()}..." oninput="crudBusca(this.value)" style="max-width:360px;flex:1;min-width:200px">${dupGrupos(k).length?`<button class="btn r s" onclick="crudDup('${k}')">Limpar duplicados (${dupGrupos(k).reduce((n,g)=>n+g.length-1,0)})</button>`:''}</div><div class="tw"><table><tr>${e.f.map(f=>`<th>${f[1]}</th>`).join('')}<th></th></tr>${D[k].map(r=>`<tr data-s="${esc(rowTxt(k,r))}">${e.f.map(f=>`<td>${f[2]==='num'?brl(r[f[0]]):f[2]==='date'?fmtD(r[f[0]]):f[2]?esc(lbl(f[2],r[f[0]])):esc(r[f[0]])}</td>`).join('')}<td style="white-space:nowrap">${r.encerrado?'<span class="tag">Encerrado</span> ':''}<button class="btn g s" onclick="crud('${k}','${r.id}')">Editar</button> ${k==='acordos'?`<button class="btn g s" onclick="encAc('${r.id}')">${r.encerrado?'Reativar':'Encerrar'}</button> `:''}<button class="btn r s" onclick="rem('${k}','${r.id}')">Excluir</button></td></tr>`).join('')||'<tr><td class="empty" colspan="9">Nada cadastrado ainda.</td></tr>'}</table></div></div>`}
 function gravar(k,id){return lock('w',()=>gravar_(k,id))}
 async function gravar_(k,id){const o=D[k].find(x=>x.id===id)||{id:uid(k[0])};
@@ -145,12 +147,12 @@ async function gravar_(k,id){const o=D[k].find(x=>x.id===id)||{id:uid(k[0])};
  if(k==='forn'){const m=mails(o.email);if(!m.length)return toast('Informe ao menos um e-mail válido');o.email=m.join(', ')}
  if(k==='acordos'){const d=D.acordos.find(a=>a.prod===o.prod&&a.forn===o.forn&&a.id!==o.id&&!a.encerrado);if(d)return toast('Já existe acordo desse produto com o fornecedor')}
  const dp=dupKey(k,o);if(dp&&k!=='acordos'&&D[k].some(x=>x.id!==o.id&&dupKey(k,x)===dp))return toast(k==='prods'?'Já existe um produto com este código':k==='forn'?'Fornecedor já cadastrado (mesmo CNPJ ou nome)':'Categoria já cadastrada');
- await save(k,o);toast('Salvo');crud(k)}
-async function rem(k,id){if(confirm('Excluir este registro?')){await del(k,id);crud(k)}}
+ await save(k,o);toast('Salvo');go(k);window.scrollTo({top:0})}
+async function rem(k,id){if(confirm('Excluir este registro?')){await del(k,id);go(k)}}
 // ===== NOVO PEDIDO =====
 function pedUI(){const q=($('#pq')||{}).value||'',c=($('#pc')||{}).value||'';
  const L=D.prods.filter(p=>(!c||p.cat===c)&&(p.nome+p.codigo).toLowerCase().includes(q.toLowerCase()));
- $('#main').innerHTML=(EDP?'':`<div class="card"><div class="row" style="margin:0"><div style="flex:2"><h3>Importar pedido por arquivo</h3><span class="mut">CSV com as colunas codigo;quantidade. Os itens entram no pedido abaixo para conferência.</span></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="ipf" accept=".csv,.txt" style="width:230px"><button class="btn" onclick="impPedido()">Importar</button><button class="btn g" onclick="modeloPedido()">Modelo CSV</button></div></div></div>`)+`<div class="card"><h3 style="margin-bottom:12px">${EDP?'Editar pedido '+esc(D.pedidos.find(p=>p.id===EDP).num):'Novo pedido'} — ${esc(U.s)}</h3><div class="row"><div><label>Buscar item</label><input id="pq" value="${esc(q)}" oninput="pedUI();$('#pq').focus()"></div><div><label>Categoria</label><select id="pc" onchange="pedUI()"><option value="">Todas</option>${D.cats.map(x=>`<option value="${x.id}" ${x.id===c?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div></div>
+ $('#main').innerHTML=(EDP?'':`<div class="card"><div class="row" style="margin:0"><div style="flex:2"><h3>Importar pedido por arquivo</h3><span class="mut">CSV com as colunas codigo;quantidade. Os itens entram no pedido abaixo para conferência.</span></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="ipf" accept=".csv,.txt,.xlsx,.xls" style="width:230px"><button class="btn" onclick="impPedido()">Importar</button><button class="btn g" onclick="modeloPedido()">Modelo CSV</button></div></div></div>`)+`<div class="card"><h3 style="margin-bottom:12px">${EDP?'Editar pedido '+esc(D.pedidos.find(p=>p.id===EDP).num):'Novo pedido'} — ${esc(U.s)}</h3><div class="row"><div><label>Buscar item</label><input id="pq" value="${esc(q)}" oninput="pedUI();$('#pq').focus()"></div><div><label>Categoria</label><select id="pc" onchange="pedUI()"><option value="">Todas</option>${D.cats.map(x=>`<option value="${x.id}" ${x.id===c?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div></div>
  <div class="tw"><table><tr><th>Código</th><th>Item</th><th>Un.</th><th>Fornecedor acordado</th><th>Qtd</th></tr>${L.map(p=>{const a=best(p.id);return`<tr><td>${esc(p.codigo)}</td><td>${esc(p.nome)}</td><td>${esc(p.un)}</td><td>${a?`${esc(lbl('forn',a.forn))} <span class="mut">${brl(a.valor)}</span>`:'<span class="tag t-sem">sem acordo</span>'}</td><td><input class="q" type="number" min="0" value="${cart[p.id]||''}" onchange="cart['${p.id}']=parseFloat(this.value)||0;"></td></tr>`}).join('')||'<tr><td class="empty" colspan="5">Nenhum produto encontrado.</td></tr>'}</table></div>
  <div style="margin-top:12px"><label>Observações</label><textarea id="po" rows="2" oninput="OBS=this.value">${esc(OBS)}</textarea></div><button class="btn" style="margin-top:12px" onclick="enviarPedido()">${EDP?'Salvar alterações':'Enviar pedido'}</button>${EDP?'<button class="btn g" style="margin:12px 0 0 8px" onclick="R.ped()">Cancelar edição</button>':''}</div>`}
 // ===== OCs (Master) =====
@@ -199,13 +201,38 @@ async function atender_(pid,prod,x){const f=$('#cf'+x).value,v=parseFloat($('#cv
  oc.total=ocTot(oc);p.sem=p.sem.filter(s=>s.prod!==prod);await save('ocs',oc);await save('pedidos',p);
  if(sv&&!D.acordos.some(a=>a.prod===prod&&a.forn===f))await save('acordos',{id:uid('a'),prod,forn:f,valor:v});toast('Item incluído na '+oc.num);cot()}
 // ===== IMPORTAÇÃO DE PRODUTOS =====
-function impUI(){$('#main').insertAdjacentHTML('afterbegin',`<div class="card"><h3 style="margin-bottom:6px">Importar produtos (CSV)</h3><p class="mut" style="margin:0 0 10px">Colunas: codigo;descricao;unidade;categoria. Categorias novas são criadas e códigos existentes são atualizados.</p><input type="file" id="imf" accept=".csv,.txt"><button class="btn" style="margin-top:10px" onclick="importar()">Importar</button></div>`)}
-function importar(){return lock('w',()=>importar_())}
-async function importar_(){const f=$('#imf').files[0];if(!f)return toast('Escolha um arquivo');const rows=(await f.text()).replace(/^\ufeff/,'').split(/\r?\n/).filter(l=>l.trim()),sep=rows[0].includes(';')?';':',';let n=0;toast('Importando...');
- for(const l of rows.slice(1)){const [codigo,nome,un,cn]=l.split(sep).map(x=>x.trim().replace(/^"|"$/g,''));if(!codigo||!nome)continue;
-  let c=D.cats.find(x=>nrm(x.nome)===nrm(cn));if(!c&&cn){c={id:uid('c'),nome:cn};await save('cats',c)}
-  const o=D.prods.find(x=>nrm(x.codigo)===nrm(codigo))||{id:uid('p')};Object.assign(o,{codigo,nome,un:un||'UN',cat:c?c.id:''});await save('prods',o);n++}
- toast(n+' produtos importados');crud('prods');impUI()}
+// ===== LEITURA DE ARQUIVOS (CSV/TXT/Excel) =====
+function csvLinhas(t){const L0=t.split(/\r?\n/).find(l=>l.trim())||'',cnt=s=>L0.split(s).length-1,sep=cnt(';')>0&&cnt(';')>=cnt(',')&&cnt(';')>=cnt('\t')?';':cnt('\t')>cnt(',')?'\t':',';
+ const R=[];let r=[],c='',q=false;
+ for(let i=0;i<t.length;i++){const ch=t[i];
+  if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+  else if(ch==='"')q=true;
+  else if(ch===sep){r.push(c);c=''}
+  else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;r.push(c);c='';R.push(r);r=[]}
+  else c+=ch}
+ if(c!==''||r.length){r.push(c);R.push(r)}
+ return R.map(r=>r.map(x=>x.trim())).filter(r=>r.some(x=>x))}
+async function lerTabela(f){const nm=f.name.toLowerCase();
+ if(/\.xlsx?$/.test(nm)){if(!window.XLSX)throw new Error('Leitor de Excel indisponível. Salve a planilha como CSV e tente de novo.');
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''}).map(r=>r.map(x=>String(x).trim())).filter(r=>r.some(x=>x))}
+ const buf=await f.arrayBuffer();let t;try{t=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(e){t=new TextDecoder('windows-1252').decode(buf)}
+ return csvLinhas(t.replace(/^\ufeff/,''))}
+// ===== IMPORTAÇÃO DE PRODUTOS =====
+function impUI(){$('#main').insertAdjacentHTML('afterbegin',`<div class="card"><h3 style="margin-bottom:6px">Importar produtos por arquivo</h3><p class="mut" style="margin:0 0 10px">Aceita CSV, TXT ou Excel (.xlsx). Colunas na ordem: código; descrição; unidade; categoria. O cabeçalho é opcional: se a primeira linha já for um produto, ela é importada. Categorias novas são criadas e códigos que já existem são atualizados.</p><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="file" id="imf" accept=".csv,.txt,.xlsx,.xls" style="max-width:320px"><button class="btn" onclick="importar()">Importar</button><button class="btn g" onclick="baixar('modelo_produtos.csv','codigo;descricao;unidade;categoria\nABC123;Exemplo de produto;UN;Material')">Modelo CSV</button></div></div>`)}
+function importar(){return lock('w',importar_)}
+async function importar_(){const f=$('#imf')&&$('#imf').files[0];if(!f)return toast('Escolha um arquivo');
+ let T;try{T=await lerTabela(f)}catch(e){return toast(e.message)}
+ if(!T.length)return toast('Arquivo vazio');
+ const H={codigo:['codigo','cod','code','sku','ref','referencia'],nome:['descricao','nome','produto','item','description'],un:['unidade','un','und','medida'],cat:['categoria','grupo','tipo']},
+  r0=T[0].map(nrm),achou=k=>r0.findIndex(c=>H[k].includes(c)),temCab=Object.keys(H).filter(k=>achou(k)>=0).length>=2,ix={codigo:0,nome:1,un:2,cat:3};
+ if(temCab)Object.keys(H).forEach(k=>{const i=achou(k);if(i>=0)ix[k]=i});
+ const L=temCab?T.slice(1):T;let novos=0,atual=0,ign=0;toast('Importando '+L.length+' linha(s)...');
+ for(let n=0;n<L.length;n++){const r=L[n],codigo=(r[ix.codigo]||'').trim(),nome=(r[ix.nome]||'').trim();if(!codigo||!nome){ign++;continue}
+  const un=(r[ix.un]||'').trim(),cn=(r[ix.cat]||'').trim();let c=cn?D.cats.find(x=>nrm(x.nome)===nrm(cn)):null;if(cn&&!c){c={id:uid('c'),nome:cn};await save('cats',c)}
+  let o=D.prods.find(x=>nrm(x.codigo)===nrm(codigo));if(o)atual++;else{o={id:uid('p')};novos++}
+  o.codigo=codigo;o.nome=nome;if(un||!o.un)o.un=un||'UN';if(c)o.cat=c.id;else if(!o.cat)o.cat='';
+  await save('prods',o);if(n%10===9)toast('Importando '+(n+1)+'/'+L.length+'...')}
+ toast(`Importação concluída: ${novos} novo(s), ${atual} atualizado(s)${ign?', '+ign+' linha(s) ignorada(s) (sem código ou descrição)':''}${temCab?'':'. Sem cabeçalho: a 1ª linha também foi importada'}`);go('prods')}
 // ===== STATUS DO E-MAIL (log do Apps Script) =====
 function logBadge(o){const l=(D.log||[]).filter(x=>x.id===o.id).pop();return l&&l.st==='confirmado'?'<span class="tag t-validada">Confirmada pelo fornecedor</span>':l&&l.st==='visualizado'?'<span class="tag">E-mail visualizado</span>':''}
 // ===== CONTRATOS / ATA DE REGISTRO DE PREÇOS =====
@@ -301,35 +328,43 @@ function pedEdit(id){const p=D.pedidos.find(x=>x.id===id);if(!editavel(p))return
  EDP=id;cart={};p.itens.forEach(i=>cart[i.prod]=i.qtd);OBS=p.obs||'';tab='ped';document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==='ped'));pedUI()}
 function meus(){const L=D.pedidos.filter(p=>U.p==='master'||p.setor===U.s).sort((a,b)=>b.data.localeCompare(a.data));
  $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${U.p==='master'?'Todos os pedidos':'Meus pedidos'}</h3><div class="tw"><table><tr><th>Pedido</th><th>Setor</th><th>Data</th><th>Itens</th><th>OCs</th><th>Sem acordo</th><th></th></tr>${L.map(p=>`<tr><td>${p.num}${p.editadoEm?' <span class="mut">(editado)</span>':''}</td><td>${esc(p.setor)}</td><td>${new Date(p.data).toLocaleDateString('pt-BR')}</td><td>${p.itens.length}</td><td>${p.ocs.map(id=>{const o=D.ocs.find(x=>x.id===id);return o?`<span class="tag t-${o.status}">${o.num}</span>`:''}).join(' ')||'—'}</td><td>${p.sem.length?`<span class="tag t-sem">${p.sem.map(i=>esc(lbl('prods',i.prod).split(' — ')[0])).join(', ')}</span>`:'—'}</td><td>${editavel(p)?`<button class="btn g s" onclick="pedEdit('${p.id}')">Editar</button>`:'<span class="mut">OC em andamento</span>'}</td></tr>`).join('')||'<tr><td class="empty" colspan="7">Nenhum pedido ainda.</td></tr>'}</table></div></div>`}
-async function impPedido(){const f=$('#ipf').files[0];if(!f)return toast('Escolha um arquivo CSV');
- const rows=(await f.text()).replace(/^\ufeff/,'').split(/\r?\n/).filter(l=>l.trim()),sep=rows[0].includes(';')?';':',';let ok=0;const nf=[];
- rows.forEach((l,x)=>{const [c,q]=l.split(sep).map(v=>v.trim().replace(/^"|"$/g,'')),qt=parseFloat(String(q).replace(',','.'));if(x===0&&isNaN(qt))return;
-  const p=D.prods.find(p=>String(p.codigo).toLowerCase()===String(c).toLowerCase());if(!p||!(qt>0)){nf.push(c);return}cart[p.id]=(cart[p.id]||0)+qt;ok++});
+async function impPedido(){const f=$('#ipf')&&$('#ipf').files[0];if(!f)return toast('Escolha um arquivo');let T;try{T=await lerTabela(f)}catch(e){return toast(e.message)}
+ let ok=0;const nf=[];T.forEach((r,x)=>{const c=String(r[0]||'').trim(),qt=parseFloat(String(r[1]||'').replace(',','.'));if(x===0&&isNaN(qt))return;
+  const p=D.prods.find(p=>nrm(p.codigo)===nrm(c));if(!p||!(qt>0)){nf.push(c);return}cart[p.id]=(cart[p.id]||0)+qt;ok++});
  pedUI();toast(ok+' itens importados'+(nf.length?'. Não encontrados: '+nf.slice(0,8).join(', ')+(nf.length>8?'…':''):'. Confira e envie o pedido.'))}
 function modeloPedido(){baixar('modelo_pedido.csv','codigo;quantidade\n'+D.prods.slice(0,3).map(p=>p.codigo+';10').join('\n'))}
 // ===== OC MANUAL =====
 let OF=null;
 function precoDe(pid,f){const c=ctVig(f),i=c&&c.itens.find(i=>i.prod===pid);if(i)return i.valor;const a=D.acordos.find(a=>a.prod===pid&&a.forn===f&&!a.encerrado&&(!a.validade||a.validade>=hoje()));return a?a.valor:''}
-function ocNova(){OF={id:uid('o'),num:'OC-'+String(maxOC()+1).padStart(4,'0'),forn:'',pedido:'',pedNum:'Manual',setor:U.s,solic:U.n,data:new Date().toISOString(),itens:[],frete:0,ipi:0,desc:0,outros:0,obs:'',cond:'',prev:'',status:'pendente',manual:true,novo:true};ocFormUI()}
-function ocEdit(id){OF=JSON.parse(JSON.stringify(D.ocs.find(o=>o.id===id)));ocFormUI()}
-function ocRead(){const g=i=>$('#'+i).value;OF.forn=g('of_f');OF.data=g('of_d')||OF.data.slice(0,10);OF.cond=g('of_c');OF.prev=g('of_p');['frete','ipi','desc','outros'].forEach(k=>OF[k]=parseFloat(g('of_'+k))||0);OF.obs=g('of_o')}
+let OCMODO='cad';
+const ocD=()=>({pr:'',ic:'',in:'',iu:'UN',iq:'',iv:''});
+function ocNova(){OF={id:uid('o'),num:'OC-'+String(maxOC()+1).padStart(4,'0'),forn:'',pedido:'',pedNum:'Manual',setor:U.s,solic:U.n,data:new Date().toISOString(),itens:[],frete:0,ipi:0,desc:0,outros:0,obs:'',cond:'',prev:'',status:'pendente',manual:true,novo:true,modo:OCMODO,d:ocD()};ocFormUI()}
+function ocEdit(id){OF=JSON.parse(JSON.stringify(D.ocs.find(o=>o.id===id)));OF.modo=OCMODO;OF.d=ocD();ocFormUI()}
+function ocRead(){const g=i=>$('#'+i)?$('#'+i).value:'';OF.forn=g('of_f');OF.data=g('of_d')||OF.data.slice(0,10);OF.cond=g('of_c');OF.prev=g('of_p');['frete','ipi','desc','outros'].forEach(k=>OF[k]=parseFloat(g('of_'+k))||0);OF.obs=g('of_o');
+ if($('#of_in'))OF.d={pr:g('of_pr'),ic:g('of_ic'),in:g('of_in'),iu:g('of_iu')||'UN',iq:g('of_iq'),iv:g('of_iv')}}
 function ocForn(){ocRead();const F=D.forn.find(x=>x.id===OF.forn);if(F&&!OF.cond)OF.cond=F.cond||'';ocFormUI()}
-function ocProd(){const p=D.prods.find(x=>x.id===$('#of_pr').value);if(!p)return;$('#of_ic').value=p.codigo;$('#of_in').value=p.nome;$('#of_iu').value=p.un;$('#of_iv').value=precoDe(p.id,$('#of_f').value)}
+function ocProd(){const p=D.prods.find(x=>x.id===$('#of_pr').value);if(!p){$('#of_ic').value='';$('#of_in').value='';$('#of_iu').value='UN';$('#of_iv').value='';return}
+ $('#of_ic').value=p.codigo;$('#of_in').value=p.nome;$('#of_iu').value=p.un;$('#of_iv').value=precoDe(p.id,$('#of_f').value)}
 function ocSet(x,k,v){ocRead();OF.itens[x][k]=parseFloat(v)||0;ocFormUI()}
 function ocRm(x){ocRead();OF.itens.splice(x,1);ocFormUI()}
-function ocAdd(){ocRead();const g=i=>$('#'+i).value.trim(),q=parseFloat(g('of_iq')),v=parseFloat(g('of_iv'));if(!g('of_in')||!(q>0)||!(v>=0))return toast('Informe descrição, quantidade e valor');
- OF.itens.push({prod:g('of_pr'),codigo:g('of_ic'),nome:g('of_in'),un:g('of_iu')||'UN',qtd:q,valor:v});ocFormUI()}
-function ocFormUI(){const o=OF,sub=o.itens.reduce((s,i)=>s+i.qtd*i.valor,0);
+function ocModo(m){ocRead();OCMODO=OF.modo=m;OF.d=ocD();ocFormUI()}
+function ocAdd(){ocRead();const d=OF.d,q=parseFloat(String(d.iq).replace(',','.')),v=parseFloat(String(d.iv).replace(',','.')),cad=OF.modo==='cad';
+ if(cad&&!d.pr)return toast('Selecione um produto cadastrado (ou use "Item avulso")');
+ if(!d.in.trim()||!(q>0)||!(v>=0))return toast('Informe descrição, quantidade e valor');
+ OF.itens.push({prod:cad?d.pr:'',codigo:d.ic.trim(),nome:d.in.trim(),un:d.iu.trim()||'UN',qtd:q,valor:v,avulso:!cad});OF.d=ocD();ocFormUI();if($('#of_in')&&!cad)$('#of_in').focus()}
+function ocFormUI(){const o=OF,sub=o.itens.reduce((s,i)=>s+i.qtd*i.valor,0),d=o.d||(o.d=ocD()),cad=o.modo!=='avulso',ro=cad?'readonly style="background:var(--s2)"':'';
  $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:14px">${o.novo?'Nova ordem de compra manual':'Editar OC'} <span class="mut">${o.num}</span></h3>
 <div class="row"><div style="flex:2"><label>Fornecedor</label><select id="of_f" onchange="ocForn()">${opts('forn',o.forn)}</select></div><div><label>Data</label><input type="date" id="of_d" value="${o.data.slice(0,10)}"></div><div><label>Cond. pagamento</label><input id="of_c" value="${esc(o.cond)}"></div><div><label>Prev. entrega</label><input type="date" id="of_p" value="${esc(o.prev)}"></div></div>
-<div class="tw"><table><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>Qtd</th><th>Valor un.</th><th>Subtotal</th><th></th></tr>${o.itens.map((i,x)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.nome)}</td><td>${esc(i.un)}</td><td><input class="q" type="number" step="any" value="${i.qtd}" onchange="ocSet(${x},'qtd',this.value)"></td><td><input class="q" type="number" step="0.01" value="${i.valor}" onchange="ocSet(${x},'valor',this.value)"></td><td>${brl(i.qtd*i.valor)}</td><td><button class="btn r s" onclick="ocRm(${x})">×</button></td></tr>`).join('')||'<tr><td class="empty" colspan="7">Nenhum item. Adicione abaixo.</td></tr>'}</table></div>
-<div class="row" style="margin-top:14px;padding:14px;background:var(--s2);border-radius:10px"><div style="flex:2;min-width:220px"><label>Produto cadastrado</label><input placeholder="Buscar produto..." oninput="filtraSel(this,'of_pr','prods')" style="margin-bottom:6px"><select id="of_pr" onchange="ocProd()"><option value="">Item avulso (digitar)</option>${D.prods.map(p=>`<option value="${p.id}">${esc(p.codigo)} — ${esc(p.nome)}</option>`).join('')}</select></div><div><label>Código</label><input id="of_ic"></div><div style="flex:2"><label>Descrição</label><input id="of_in"></div><div style="min-width:70px;flex:.5"><label>Un.</label><input id="of_iu" value="UN"></div><div><label>Qtd</label><input id="of_iq" type="number" step="any"></div><div><label>Valor un.</label><input id="of_iv" type="number" step="0.01"></div><button class="btn g" onclick="ocAdd()">+ Adicionar</button></div>
-<div class="row"><div><label>Frete (R$)</label><input id="of_frete" type="number" step="0.01" value="${o.frete||0}"></div><div><label>IPI (R$)</label><input id="of_ipi" type="number" step="0.01" value="${o.ipi||0}"></div><div><label>Outros (R$)</label><input id="of_outros" type="number" step="0.01" value="${o.outros||0}"></div><div><label>Desconto (R$)</label><input id="of_desc" type="number" step="0.01" value="${o.desc||0}"></div></div>
+<div class="tw"><table><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>Qtd</th><th>Valor un.</th><th>Subtotal</th><th></th></tr>${o.itens.map((i,x)=>`<tr><td>${esc(i.codigo)||'—'}</td><td>${esc(i.nome)}${i.avulso||!i.prod?' <span class="tag">avulso</span>':''}</td><td>${esc(i.un)}</td><td><input class="q" type="number" step="any" value="${i.qtd}" onchange="ocSet(${x},'qtd',this.value)"></td><td><input class="q" type="number" step="0.01" value="${i.valor}" onchange="ocSet(${x},'valor',this.value)"></td><td>${brl(i.qtd*i.valor)}</td><td><button class="btn r s" onclick="ocRm(${x})">×</button></td></tr>`).join('')||'<tr><td class="empty" colspan="7">Nenhum item. Adicione abaixo.</td></tr>'}</table></div>
+<div style="margin-top:14px;padding:14px;background:var(--s2);border-radius:10px"><div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="btn s ${cad?'':'g'}" onclick="ocModo('cad')">Item cadastrado</button><button class="btn s ${cad?'g':''}" onclick="ocModo('avulso')">Item avulso (sem cadastro)</button><span class="mut" style="align-self:center">${cad?'Escolha um produto do cadastro: código, descrição e valor são preenchidos.':'Digite livremente: este item não será salvo no cadastro de produtos.'}</span></div>
+<div class="row" style="margin:0">${cad?`<div style="flex:2;min-width:240px"><label>Produto cadastrado</label><input placeholder="Buscar produto..." oninput="filtraSel(this,'of_pr','prods')" style="margin-bottom:6px"><select id="of_pr" onchange="ocProd()"><option value="">Selecione o produto</option>${D.prods.map(p=>`<option value="${p.id}" ${p.id===d.pr?'selected':''}>${esc(p.codigo)} — ${esc(p.nome)}</option>`).join('')}</select></div>`:''}
+<div><label>Código${cad?'':' (opcional)'}</label><input id="of_ic" value="${esc(d.ic)}" ${ro}></div><div style="flex:2"><label>Descrição</label><input id="of_in" value="${esc(d.in)}" ${ro}></div><div style="min-width:70px;flex:.5"><label>Un.</label><input id="of_iu" value="${esc(d.iu)}" ${ro}></div><div><label>Qtd</label><input id="of_iq" type="number" step="any" value="${esc(d.iq)}"></div><div><label>Valor un.</label><input id="of_iv" type="number" step="0.01" value="${esc(d.iv)}" onkeydown="if(event.key==='Enter')ocAdd()"></div><button class="btn" onclick="ocAdd()">+ Adicionar</button></div></div>
+<div class="row" style="margin-top:14px"><div><label>Frete (R$)</label><input id="of_frete" type="number" step="0.01" value="${o.frete||0}"></div><div><label>IPI (R$)</label><input id="of_ipi" type="number" step="0.01" value="${o.ipi||0}"></div><div><label>Outros (R$)</label><input id="of_outros" type="number" step="0.01" value="${o.outros||0}"></div><div><label>Desconto (R$)</label><input id="of_desc" type="number" step="0.01" value="${o.desc||0}"></div></div>
 <label>Observações</label><textarea id="of_o" rows="2">${esc(o.obs)}</textarea>
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-top:16px"><div><span class="mut">Subtotal ${brl(sub)}</span><div style="font-size:1.25rem;font-weight:600">Total ${brl(ocTot(o))}</div></div><div style="display:flex;gap:8px"><button class="btn g" onclick="go('ocs')">Cancelar</button><button class="btn g" onclick="ocSave(0)">Salvar OC</button>${U.p==='master'?'<button class="btn" onclick="ocSave(1)">Salvar e validar</button>':''}</div></div></div>`}
 function ocSave(v){return lock('w',()=>ocSave_(v))}
 async function ocSave_(v){ocRead();if(!OF.forn)return toast('Selecione o fornecedor');if(!OF.itens.length)return toast('Adicione ao menos um item');
- const o=OF;delete o.novo;if(String(o.data).length===10)o.data=new Date(o.data+'T12:00:00').toISOString();o.total=ocTot(o);o.contrato=(ctVig(o.forn)||{}).num;if(v&&U.p==='master'){o.status='validada';o.validadaPor=U.n}
+ const o=OF;delete o.novo;delete o.d;delete o.modo;if(String(o.data).length===10)o.data=new Date(o.data+'T12:00:00').toISOString();o.total=ocTot(o);o.contrato=(ctVig(o.forn)||{}).num;if(v&&U.p==='master'){o.status='validada';o.validadaPor=U.n}
  await save('ocs',o);toast('OC '+o.num+' salva');OF=null;go('ocs')}
 // ===== VENCIMENTOS =====
 const dias=d=>Math.round((new Date(d+'T00:00:00')-new Date(hoje()+'T00:00:00'))/864e5);
@@ -381,7 +416,7 @@ async function encAc(id){const a=D.acordos.find(x=>x.id===id);if(!a.encerrado&&!
 const nrm=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const rowTxt=(k,r)=>nrm(E[k].f.map(f=>f[2]&&f[2]!=='num'&&f[2]!=='date'?lbl(f[2],r[f[0]]):r[f[0]]).join(' '));
 function crudBusca(v){const q=nrm(v);document.querySelectorAll('#main table tr[data-s]').forEach(tr=>tr.style.display=tr.dataset.s.includes(q)?'':'none')}
-function filtraSel(inp,selId,k){const q=nrm(inp.value),s=$('#'+selId),cur=s.value,av=selId==='of_pr',L=D[k].filter(o=>!q||nrm(lbl(k,o.id)).includes(q));
+function filtraSel(inp,selId,k){const q=nrm(inp.value),s=$('#'+selId),cur=s.value,av=false,L=D[k].filter(o=>!q||nrm(lbl(k,o.id)).includes(q));
  const t=q?(L.length?L.length+' resultado(s) encontrado(s) — clique para escolher':(av?'Nenhum resultado (item avulso)':'Nenhum resultado')):(av?'Item avulso (digitar)':'Selecione');
  s.innerHTML=`<option value="">${t}</option>`+L.map(o=>`<option value="${o.id}">${esc(lbl(k,o.id))}</option>`).join('');
  if(q&&L.length===1){s.value=L[0].id;s.size=1;s.dispatchEvent(new Event('change'))}
@@ -400,6 +435,6 @@ async function remap(k,from,to){const ch=[];
 function crudDup(k){return lock('w',async()=>{const G=dupGrupos(k),n=G.reduce((s,g)=>s+g.length-1,0);if(!n)return toast('Nenhum cadastro duplicado');
  if(!confirm('Foram encontrados '+n+' registro(s) duplicado(s). Manter o mais antigo de cada grupo, transferir os vínculos (acordos, contratos, OCs e pedidos) para ele e apagar os repetidos?'))return;
  toast('Limpando duplicados...');for(const g of G)for(const d of g.slice(1)){await remap(k,d.id,g[0].id);await del(k,d.id)}
- toast(n+' duplicado(s) removido(s)');crud(k)})}
+ toast(n+' duplicado(s) removido(s)');go(k)})}
 const R={ped:()=>{EDP=null;cart={};OBS='';pedUI()},meus,ocs,rel,usr,cot,ctr,prods:()=>{crud('prods');impUI()},acordos:()=>{crud('acordos');$('#main').insertAdjacentHTML('afterbegin',vencBanner())},forn:()=>crud('forn'),cats:()=>crud('cats')};
 </script></body></html>
