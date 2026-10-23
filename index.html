@@ -67,7 +67,7 @@ canvas.sg{background:#fff;border-radius:6px;width:100%;max-width:420px;height:13
 <select class="linput" id="regRole"><option value="user">Solicitante</option><option value="admin">Administrador (Compras)</option></select>
 <p style="font-size:.74rem;color:var(--tx3);margin:0 0 12px">⚠️ Acesso pendente até aprovação do administrador.</p><button class="lbtn" onclick="doRegister()">Solicitar Cadastro</button><div class="lerror" id="registerError"></div></div>
 </div></div>
-<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-10</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
+<div id="app" style="display:none"><header><img id="hl" alt="" style="height:30px;border-radius:6px"><h1>Vila Nova</h1><span class="mut">Pedidos e Ordens de Compra</span><span class="mut" id="ver" style="opacity:.55;font-size:.7rem">v2026.10.21-11</span><div class="u"><span class="dot" id="dot"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header>
 <nav id="nav"></nav><main id="main"></main></div><div id="toast"></div><div id="sign" style="display:none"></div><div id="printArea"></div>
 <script>
 // ===== CONFIG =====
@@ -125,6 +125,7 @@ async function start(u){const master=u.role==='admin';U={e:u.email,n:u.name,s:u.
  $('#login').style.display='none';$('#app').style.display='block';$('#hl').src=document.querySelector('#login img').src;$('#who').textContent=U.n+' · '+U.s+(master?' (Master)':'');
  await Promise.all(Object.keys(SH).map(load));$('#dot').style.background=DBOK?'#22a06b':'#e74c3c';
  try{const lg=await gs({action:'getAll',sheet:'oc_emails_log'});D.log=Array.isArray(lg)?lg.map(r=>({id:String(r.id),st:String(r.timestamp)})):[]}catch(e){D.log=[]}
+ try{const pl=await gs({action:'getAll',sheet:'pedido_emails_log'});D.plog=Array.isArray(pl)?pl:[]}catch(e){D.plog=[]}
  const T=master?[['ped','Novo pedido'],['meus','Pedidos'],['ocs','Ordens de compra'],['prods','Produtos'],['acordos','Acordos de valor'],['ctr','Contratos'],['forn','Fornecedores'],['cats','Categorias'],['cot','Sem acordo'],['usr','Usuários'],['rel','Relatórios']]:[['ped','Novo pedido'],['meus','Meus pedidos']];
  $('#nav').innerHTML=T.map(t=>`<button data-t="${t[0]}" onclick="go('${t[0]}')">${t[1]}</button>`).join('');go('ped')}
 const QP=new URLSearchParams(location.search);setTimeout(()=>QP.get('assinar')?assinarUI(QP.get('assinar'),QP.get('t')):lembrado(),0);
@@ -342,12 +343,12 @@ async function enviarPedido_(){const it=Object.entries(cart).filter(e=>e[1]>0).m
  if(it.some(i=>{const p=D.prods.find(x=>x.id===i.prod);return p&&!catOk(p.cat)}))return toast('O pedido tem item de categoria não liberada para o seu usuário. Remova-o para enviar.');
  let ped;if(EDP){ped=D.pedidos.find(p=>p.id===EDP);if(!editavel(ped))return toast('Este pedido tem OC já validada ou enviada e não pode mais ser alterado');ped.itens=it;ped.obs=OBS;ped.editadoEm=new Date().toISOString();ped.editadoPor=U.n}
  else ped={id:uid('p'),num:'PD-'+String(maxPed()+1).padStart(4,'0'),setor:U.s,user:U.n,data:new Date().toISOString(),obs:OBS,itens:it,ocs:[],sem:[]};
- const ed=!!EDP;await gerarOCs(ped);await save('pedidos',ped);cart={};EDP=null;OBS='';
+ const ed=!!EDP;await gerarOCs(ped);await save('pedidos',ped);cart={};EDP=null;OBS='';notificaPedido(ped,ed?'atualizado':'novo');
  toast(`Pedido ${ped.num} ${ed?'atualizado':'enviado'}: ${ped.ocs.length} OC(s)${ped.sem.length?', '+ped.sem.length+' item(ns) sem acordo':''}`);go('meus')}
 function pedEdit(id){const p=D.pedidos.find(x=>x.id===id);if(!editavel(p))return toast('OC já validada ou enviada: pedido bloqueado');
  EDP=id;cart={};p.itens.forEach(i=>cart[i.prod]=i.qtd);OBS=p.obs||'';tab='ped';document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==='ped'));pedUI()}
 function meus(){const L=D.pedidos.filter(p=>U.p==='master'||p.setor===U.s).sort((a,b)=>b.data.localeCompare(a.data));
- $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${U.p==='master'?'Todos os pedidos':'Meus pedidos'}</h3><div class="tw"><table><tr><th>Pedido</th><th>Setor</th><th>Data</th><th>Itens</th><th>OCs</th><th>Sem acordo</th><th></th></tr>${L.map(p=>`<tr><td>${p.num}${p.editadoEm?' <span class="mut">(editado)</span>':''}</td><td>${esc(p.setor)}</td><td>${new Date(p.data).toLocaleDateString('pt-BR')}</td><td>${p.itens.length}</td><td>${p.ocs.map(id=>{const o=D.ocs.find(x=>x.id===id);return o?`<span class="tag t-${o.status}">${o.num}</span>`:''}).join(' ')||'—'}</td><td>${p.sem.length?`<span class="tag t-sem">${p.sem.map(i=>esc(lbl('prods',i.prod).split(' — ')[0])).join(', ')}</span>`:'—'}</td><td style="white-space:nowrap">${editavel(p)?`<button class="btn g s" onclick="pedEdit('${p.id}')">Editar</button>`:'<span class="mut">OC em andamento</span>'} <button class="btn g s" onclick="pedCsv('${p.id}')">CSV</button></td></tr>`).join('')||'<tr><td class="empty" colspan="7">Nenhum pedido ainda.</td></tr>'}</table></div></div>`}
+ $('#main').innerHTML=`<div class="card"><h3 style="margin-bottom:12px">${U.p==='master'?'Todos os pedidos':'Meus pedidos'}</h3><div class="tw"><table><tr><th>Pedido</th><th>Setor</th><th>Data</th><th>Itens</th><th>OCs</th><th>Sem acordo</th><th>Aviso ao Compras</th><th></th></tr>${L.map(p=>`<tr><td>${p.num}${p.editadoEm?' <span class="mut">(editado)</span>':''}</td><td>${esc(p.setor)}</td><td>${new Date(p.data).toLocaleDateString('pt-BR')}</td><td>${p.itens.length}</td><td>${p.ocs.map(id=>{const o=D.ocs.find(x=>x.id===id);return o?`<span class="tag t-${o.status}">${o.num}</span>`:''}).join(' ')||'—'}</td><td>${p.sem.length?`<span class="tag t-sem">${p.sem.map(i=>esc(lbl('prods',i.prod).split(' — ')[0])).join(', ')}</span>`:'—'}</td><td>${pedAviso(p)}</td><td style="white-space:nowrap">${editavel(p)?`<button class="btn g s" onclick="pedEdit('${p.id}')">Editar</button>`:'<span class="mut">OC em andamento</span>'} <button class="btn g s" onclick="pedCsv('${p.id}')">CSV</button></td></tr>`).join('')||'<tr><td class="empty" colspan="8">Nenhum pedido ainda.</td></tr>'}</table></div></div>`}
 async function impPedido(){const f=$('#ipf')&&$('#ipf').files[0];if(!f)return toast('Escolha um arquivo');let T;try{T=await lerTabela(f)}catch(e){return toast(e.message)}
  let ok=0;const nf=[],bl=[];T.forEach((r,x)=>{const c=String(r[0]||'').trim(),qt=parseFloat(String(r[1]||'').replace(',','.'));if(x===0&&isNaN(qt))return;
   const p=D.prods.find(p=>nrm(p.codigo)===nrm(c));if(p&&!catOk(p.cat)){bl.push(c);return}if(!p||!(qt>0)){nf.push(c);return}cart[p.id]=(cart[p.id]||0)+qt;ok++});
@@ -504,5 +505,16 @@ async function saveMany(k,objs){objs.forEach(o=>{const i=D[k].findIndex(x=>x.id=
   try{r=await gsPost({action:'batchInsert',sheet:SH[k],rows:part.map(o=>({id:o.id,json:JSON.stringify(o)}))})}catch(e){r={error:e.message}}
   if(!r||r.status!=='ok'){for(const o of part)await save_(k,o)}}}
 async function testaConexao(){const t0=Date.now();$e('loginError','Testando conexão...',1);try{const r=await gs({action:'test'});$e('loginError',r.status==='ok'?'✅ Banco conectado em '+((Date.now()-t0)/1000).toFixed(1)+' s.':'⚠️ Resposta inesperada do servidor: '+JSON.stringify(r).slice(0,120),r.status==='ok')}catch(e){$e('loginError','❌ Sem conexão: '+(e.message||e)+'. Link em uso: '+GS.slice(0,48)+'…')}}
+// ===== AVISO DE PEDIDO AOS MASTERS =====
+function pedPayload(ped,tipo){const dt=new Date(ped.data);
+ return{id:ped.id,num:ped.num,setor:ped.setor,user:ped.user,obs:ped.obs||'',tipo,data_fmt:dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+  itens:ped.itens.map(i=>{const p=D.prods.find(x=>x.id===i.prod)||{codigo:'?',nome:'(produto removido)',un:''},a=best(i.prod);return{codigo:p.codigo,nome:p.nome,un:p.un,qtd:i.qtd,forn:a?lbl('forn',a.forn):'',valor:a?a.valor:null}}),
+  sem:(ped.sem||[]).map(i=>pcod(i.prod)),ocs:(ped.ocs||[]).map(id=>(D.ocs.find(o=>o.id===id)||{}).num).filter(Boolean),
+  solicitante_email:U.e||'',remetente_email:U.e||'',app_url:location.href.split(/[?#]/)[0]}}
+function notificaPedido(ped,tipo){gsPost({action:'notifyPedido',...pedPayload(ped,tipo)}).then(r=>{
+  toast(r&&r.success?'Aviso enviado por e-mail aos administradores Master (com PDF)':'Pedido salvo, mas o aviso por e-mail não foi enviado'+(r&&r.error?': '+r.error:''));loadPlog()}).catch(()=>toast('Pedido salvo, mas não foi possível confirmar o envio do aviso por e-mail'))}
+async function loadPlog(){try{const r=await gs({action:'getAll',sheet:'pedido_emails_log'});D.plog=Array.isArray(r)?r:[]}catch(e){D.plog=D.plog||[]}if(tab==='meus')meus()}
+function pedAviso(p){const m={};(D.plog||[]).filter(r=>String(r.pedido_id)===p.id).forEach(r=>{m[String(r.email).toLowerCase()]=r.status});const E=Object.keys(m);if(!E.length)return'<span class="mut">—</span>';
+ const c=E.filter(e=>m[e]==='confirmado').length;return`<span class="tag ${c===E.length?'t-validada':c?'t-pendente':''}" title="${esc(E.map(e=>e+': '+m[e]).join('\n'))}">${c} de ${E.length} confirmaram</span>`}
 const R={ped:()=>{EDP=null;cart={};OBS='';PQ='';PC='';pedUI()},meus,ocs,rel,usr,cot,ctr,prods:()=>{crud('prods');impUI()},acordos:()=>{crud('acordos');$('#main').insertAdjacentHTML('afterbegin',vencBanner())},forn:()=>crud('forn'),cats:()=>crud('cats')};
 </script></body></html>
