@@ -134,7 +134,7 @@ td{border-bottom:1px solid #edf3f0}tbody tr:hover td{background:#f1faf6}
 <p class="lnote">⚠️ O acesso fica pendente até a aprovação do administrador.</p>
 <button class="lbtn" onclick="doRegister()"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg><span>Solicitar cadastro</span></button><div class="lerror" id="registerError"></div></div>
 </div><div class="lslogan2">Respeito, profissionalismo e carinho pela saúde <b>da nossa comunidade.</b></div></div></div>
-<div id="app" style="display:none"><div class="topbar"><header><img id="hl" alt="Vila Nova"><span class="hsub">Pedidos e Ordens de Compra</span><span class="mut" id="ver">v2026.10.21-16</span><div class="u"><span class="dot" id="dot" title="Conexão com o banco de dados"></span><span class="av" id="uav"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header><nav id="nav"></nav></div>
+<div id="app" style="display:none"><div class="topbar"><header><img id="hl" alt="Vila Nova"><span class="hsub">Pedidos e Ordens de Compra</span><span class="mut" id="ver">v2026.10.21-17</span><div class="u"><span class="dot" id="dot" title="Conexão com o banco de dados"></span><span class="av" id="uav"></span><span id="who"></span><button class="btn g s" onclick="sair()">Sair</button></div></header><nav id="nav"></nav></div>
 <main id="main"></main></div><div id="toast"></div><div id="sign" style="display:none"></div><div id="printArea"></div>
 <script>
 // ===== CONFIG =====
@@ -247,7 +247,7 @@ function pedLimpa(){if(!Object.keys(cart).length)return;if(confirm('Remover todo
 // ===== OCs (Master) =====
 const ST={pendente:'Aguardando validação',validada:'Validada',enviada:'Enviada'};
 function ocsLista(){const L=ocsFiltradas(),nn=$('#ocn');if(nn)nn.textContent=L.length+(L.length!==D.ocs.length?' de '+D.ocs.length:'');
- $('#ocl').innerHTML=(L.map(o=>`<div class="card"><div class="row" style="margin:0 0 8px"><div><h3>${o.num} <span class="tag t-${o.status}">${ST[o.status]}</span> ${logBadge(o)}${o.contrato?` <span class="tag">${o.contrato}</span>`:''}</h3><span class="mut">${esc(lbl('forn',o.forn))} · ${o.pedNum} · ${esc(o.setor)}</span></div><div style="flex:0 0 auto;min-width:0;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto">
+ $('#ocl').innerHTML=(L.map(o=>`<div class="card"><div class="row" style="margin:0 0 8px"><div><h3>${o.num} <span class="tag t-${o.status}">${ST[o.status]}</span> ${logBadge(o)}${o.contrato?` <span class="tag">${o.contrato}</span>`:''}</h3><span class="mut">${esc(lbl('forn',o.forn))} · ${o.pedNum} · ${esc(o.setor)} · <b style="color:var(--tx2)">Emitida em ${ocDt(o)}</b></span></div><div style="flex:0 0 auto;min-width:0;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto">
  ${o.status==='pendente'?`<button class="btn g s" onclick="ocEdit('${o.id}')">Editar</button><button class="btn s" onclick="validar('${o.id}')">Validar</button>`:''}${o.status==='validada'?`<button class="btn s" onclick="enviarOC('${o.id}')">Enviar ao fornecedor</button>`:''}<button class="btn g s" onclick="ocPdf('${o.id}')">Baixar PDF</button>${o.status!=='enviada'?`<button class="btn r s" onclick="cancelarOC('${o.id}')">Excluir</button>`:''}</div></div>
  <div class="tw"><table><tr><th>Código</th><th>Item</th><th>Qtd</th><th>Valor un.</th><th>Subtotal</th></tr>${o.itens.map((i,x)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.nome)}</td><td>${o.status==='pendente'?`<input class="q" type="number" value="${i.qtd}" onchange="editQ('${o.id}',${x},this.value)">`:i.qtd+' '+esc(i.un)}</td><td>${brl(i.valor)}</td><td>${brl(i.qtd*i.valor)}</td></tr>`).join('')}${(o.frete||o.ipi||o.outros||o.desc)?`<tr><td colspan="4" style="text-align:right" class="mut">Frete ${brl(o.frete)} · IPI ${brl(o.ipi)} · Outros ${brl(o.outros)} · Desconto −${brl(o.desc)}</td><td></td></tr>`:''}<tr><td colspan="4" style="text-align:right"><b>Total</b></td><td><b>${brl(o.total)}</b></td></tr></table></div></div>`).join('')||`<div class="empty">${D.ocs.length?'Nenhuma OC encontrada com esses filtros.':'Nenhuma OC gerada ainda.'}</div>`)}
 async function editQ(id,x,v){const o=D.ocs.find(o=>o.id===id);o.itens[x].qtd=parseFloat(v)||0;o.total=ocTot(o);await save('ocs',o);ocs()}
@@ -543,16 +543,18 @@ function usrCats(id){const u=UL.find(x=>x.id===id),sel=Array.isArray(u.cats)?u.c
 function ucMarca(v){document.querySelectorAll('#uclist input').forEach(i=>i.checked=!!v)}
 async function ucSalva(id){const ids=[...document.querySelectorAll('#uclist input:checked')].map(i=>i.value),todas=D.cats.length>0&&ids.length===D.cats.length;$('#umod').remove();await setUser(id,{cats:todas?null:ids})}
 // ===== OCs: filtros =====
-let OFQ={q:'',st:'',f:''};
-function ocsFiltradas(){const q=nrm(OFQ.q);return [...D.ocs].sort((a,b)=>b.data.localeCompare(a.data)).filter(o=>{
+let OFQ={q:'',st:'',f:'',o:'desc'};
+const ocSeq=o=>parseInt((String(o.num).match(/\d+/)||[0])[0])||0,ocDt=o=>{const d=String(o.data||'');return /^\d{4}-\d{2}-\d{2}$/.test(d)?d.split('-').reverse().join('/'):new Date(d).toLocaleDateString('pt-BR')};
+function ocsFiltradas(){const q=nrm(OFQ.q);return [...D.ocs].sort((a,b)=>(OFQ.o==='asc'?1:-1)*(ocSeq(a)-ocSeq(b)||String(a.data).localeCompare(String(b.data)))).filter(o=>{
  if(OFQ.f&&o.forn!==OFQ.f)return false;
  if(OFQ.st==='confirmada'){const l=(D.log||[]).filter(x=>x.id===o.id).pop();if(!(l&&l.st==='confirmado'))return false}else if(OFQ.st&&o.status!==OFQ.st)return false;
- if(q&&!nrm([o.num,ocLabel(o),o.pedNum,lbl('forn',o.forn),o.setor,o.solic].join(' ')).includes(q))return false;return true})}
+ if(q&&!nrm([o.num,ocLabel(o),o.pedNum,lbl('forn',o.forn),o.setor,o.solic,ocDt(o)].join(' ')).includes(q))return false;return true})}
 function ocs(){$('#main').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px"><h3>Ordens de compra <span class="tag" id="ocn"></span></h3><button class="btn" onclick="ocNova()">+ Nova OC manual</button></div>
-<div class="card" style="padding:14px 16px"><div class="row" style="margin:0"><div style="flex:2"><label>Buscar por número da OC, pedido ou fornecedor</label><input id="ofq" value="${esc(OFQ.q)}" placeholder="Ex.: OC-0012, PD-0005 ou nome do fornecedor" oninput="OFQ.q=this.value;ocsLista()"></div>
+<div class="card" style="padding:14px 16px"><div class="row" style="margin:0"><div style="flex:2"><label>Buscar por número da OC, pedido, fornecedor ou data</label><input id="ofq" value="${esc(OFQ.q)}" placeholder="Ex.: OC-0012, PD-0005, fornecedor ou data (22/10)" oninput="OFQ.q=this.value;ocsLista()"></div>
 <div><label>Fornecedor</label><select onchange="OFQ.f=this.value;ocsLista()">${opts('forn',OFQ.f).replace('>Selecione<','>Todos<')}</select></div>
 <div><label>Situação</label><select onchange="OFQ.st=this.value;ocsLista()">${[['','Todas'],['pendente','Aguardando validação'],['validada','Validadas'],['enviada','Enviadas'],['confirmada','Confirmadas pelo fornecedor']].map(x=>`<option value="${x[0]}" ${OFQ.st===x[0]?'selected':''}>${x[1]}</option>`).join('')}</select></div>
-<div style="flex:0 0 auto;min-width:0"><button class="btn g" onclick="OFQ={q:'',st:'',f:''};ocs()">Limpar filtros</button></div></div></div><div id="ocl"></div>`;ocsLista()}
+<div><label>Ordem</label><select onchange="OFQ.o=this.value;ocsLista()"><option value="desc" ${OFQ.o==='desc'?'selected':''}>Mais recentes primeiro</option><option value="asc" ${OFQ.o==='asc'?'selected':''}>Mais antigas primeiro</option></select></div>
+<div style="flex:0 0 auto;min-width:0"><button class="btn g" onclick="OFQ={q:'',st:'',f:'',o:OFQ.o};ocs()">Limpar filtros</button></div></div></div><div id="ocl"></div>`;ocsLista()}
 // ===== SEM ACORDO por pedido + CSV =====
 const pcod=id=>{const p=D.prods.find(x=>x.id===id);return p?p.codigo:'?'},fq=q=>String(q).replace('.',',');
 function pedCsv(pid){const p=D.pedidos.find(x=>x.id===pid);baixar('pedido_'+p.num+'.csv','codigo;quantidade\n'+p.itens.map(i=>pcod(i.prod)+';'+fq(i.qtd)).join('\n'))}
