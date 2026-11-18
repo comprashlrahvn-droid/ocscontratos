@@ -148,10 +148,10 @@ td{border-bottom:1px solid #edf3f0}tbody tr:hover td{background:#f1faf6}
 <script>
 (function(){var NS='http://www.w3.org/2000/svg',g=document.getElementById('vndots'),svg=document.getElementById('vnsvg');
 // [caminho, nº de pontos, duração(s), sentido inverso]
-[['vn-outer',4,22,0],['vn-hole',3,17,1]].forEach(function(c){for(var k=0;k<c[1];k++)for(var j=0;j<7;j++){
+[['vn-outer',3,64,0],['vn-hole',2,52,1]].forEach(function(c){for(var k=0;k<c[1];k++)for(var j=0;j<7;j++){
  var d=document.createElementNS(NS,'circle'),a=document.createElementNS(NS,'animateMotion'),m=document.createElementNS(NS,'mpath');
  d.setAttribute('r',(4.1-j*.5).toFixed(2));d.setAttribute('fill',j?'#1fd495':'#0fbf80');d.setAttribute('opacity',(1-j*.14).toFixed(2));
- a.setAttribute('dur',c[2]+'s');a.setAttribute('repeatCount','indefinite');a.setAttribute('begin',(-(c[2]/c[1])*k+j*.16).toFixed(2)+'s');
+ a.setAttribute('dur',c[2]+'s');a.setAttribute('repeatCount','indefinite');a.setAttribute('begin',(-(c[2]/c[1])*k+j*.5).toFixed(2)+'s');
  if(c[3]){a.setAttribute('keyPoints','1;0');a.setAttribute('keyTimes','0;1');a.setAttribute('calcMode','linear')}
  m.setAttributeNS('http://www.w3.org/1999/xlink','href','#'+c[0]);m.setAttribute('href','#'+c[0]);a.appendChild(m);d.appendChild(a);g.appendChild(d)}});
 if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches&&svg.pauseAnimations)svg.pauseAnimations()})();
